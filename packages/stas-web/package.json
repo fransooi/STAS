@@ -1,0 +1,7 @@
+{
+  "name": "@stas/web",
+  "version": "0.1.0",
+  "description": "STAS dans le navigateur — canvas ASCII, intégrable en iframe (AWI-HAXE, AOZ).",
+  "type": "module",
+  "license": "MIT"
+}

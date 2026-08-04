@@ -1,0 +1,8 @@
+{
+  "name": "@stas/console",
+  "version": "0.1.0",
+  "description": "STAS dans votre terminal — rendu ANSI, zéro dépendance.",
+  "type": "module",
+  "bin": { "stas": "bin/stas.js" },
+  "license": "MIT"
+}

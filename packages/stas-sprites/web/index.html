@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>STAS · Éditeur de sprites ASCII</title>
+    <!-- Police pixel VT323 (rendu par défaut) via Google Fonts, repli monospace -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=VT323&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Les autres polices de rendu du catalogue (src/fonts.js) + la police d'interface -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=DotGothic16&family=IBM+Plex+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- ═══════════════════ Barre de titre + E/S fichier ═══════════════════ -->
+      <header id="topbar">
+        <div class="brand">
+          <span class="pix" aria-hidden="true"></span>
+          <div class="brand-txt">
+            <h1>STAS <em>SPRITE STUDIO</em></h1>
+            <p>
+              éditeur de sprites ASCII — package
+              <code>stas-sprites</code> · banque, animation &amp; export
+            </p>
+          </div>
+        </div>
+        <nav class="top-actions">
+          <span class="grp">Exporter</span>
+          <button id="btnJson" class="btn exp json" title="Banque complète : tous les sprites + animation (.stasprite)">⬇ JSON</button>
+          <button id="btnTxt" class="btn exp txt" title="Texte brut : les caractères seuls, une rangée par ligne">⬇ TXT</button>
+          <button id="btnAnsi" class="btn exp ansi" title="Rendu ANSI 24 bits pour terminal">⬇ ANSI</button>
+          <span class="grp">Ouvrir</span>
+          <button id="btnOpen" class="btn" title="Charger une banque — ou glisser-déposer un fichier sur la page">CHARGER…</button>
+          <input
+            type="file"
+            id="fileInput"
+            accept=".stasprite,.json,application/json"
+            hidden
+          />
+        </nav>
+      </header>
+
+      <!-- ═══════════════════ Poste de travail : outils · grille · banque ═══════════════════ -->
+      <main id="workbench">
+        <!-- ——— Panneau outils ——— -->
+        <aside class="panel" id="panelTools">
+          <h2><i></i>Outils</h2>
+          <div id="toolModes" class="btn-grid"></div>
+          <div class="row">
+            <button id="btnUndo" class="btn" title="Annuler (Ctrl+Z)" disabled>↶ ANNULER</button>
+            <button id="btnRedo" class="btn" title="Refaire (Ctrl+Y)" disabled>↷ REFAIRE</button>
+          </div>
+
+          <h2><i></i>Transformer</h2>
+          <div id="toolActs" class="btn-grid acts"></div>
+
+          <h2><i></i>Encre · Papier</h2>
+          <p class="pal-label">ENCRE (fg)</p>
+          <div id="palFg" class="palette"></div>
+          <p class="pal-label">PAPIER (bg)</p>
+          <div id="palBg" class="palette"></div>
+          <div class="ink-readout">
+            <span id="inkCh" class="ink-ch">█</span>
+            <span id="inkMeta" class="ink-meta"></span>
+          </div>
+        </aside>
+
+        <!-- ——— Scène : grille d'édition + aperçu + état ——— -->
+        <section id="stage">
+          <div class="panel canvas-panel">
+            <h2><i></i>Grille d'édition <span id="gridInfo" class="h-info"></span></h2>
+            <div id="gridWrap"><canvas id="grid">Canvas requis.</canvas></div>
+            <p class="hint">
+              clic gauche : poser l'encre · clic droit : gomme · les formes se
+              tracent en glissant (aperçu en direct)
+            </p>
+          </div>
+          <aside class="stage-side">
+            <div class="panel">
+              <h2><i></i>Aperçu 1:1</h2>
+              <div id="previewWrap"><canvas id="preview"></canvas></div>
+            </div>
+            <div class="panel">
+              <h2><i></i>État</h2>
+              <div class="readout">
+                <p>position <b id="stCoord">X:-- Y:--</b></p>
+                <p>outil <b id="stTool">plot</b></p>
+                <p>encre <b id="stInk">"█" U+2588</b></p>
+                <p>sprite <b id="stInfo">--</b></p>
+              </div>
+            </div>
+          </aside>
+        </section>
+
+        <!-- ——— Panneau banque + animation ——— -->
+        <aside class="panel" id="panelBank">
+          <h2><i></i>Banque <span id="bankCount" class="h-info"></span></h2>
+          <div id="thumbs" class="thumbs"></div>
+          <div class="row bank-nav">
+            <button id="btnPrev" class="btn" title="Sprite précédent">◀</button>
+            <button id="btnNext" class="btn" title="Sprite suivant">▶</button>
+            <button id="btnNew" class="btn" title="Nouveau sprite (taille ci-dessous)">＋ NOUV.</button>
+            <button id="btnDel" class="btn danger" title="Supprimer le sprite courant">✕ SUPPR.</button>
+          </div>
+          <div class="row size-row">
+            <label>L <input id="inW" type="number" min="1" max="512" value="32" /></label>
+            <label>H <input id="inH" type="number" min="1" max="512" value="32" /></label>
+            <button id="btnResize" class="btn" title="Redimensionner le sprite courant (coin haut-gauche conservé)">FIXER TAILLE</button>
+          </div>
+
+          <h2><i></i>Animation</h2>
+          <div class="row">
+            <button id="btnPlay" class="btn play" title="Lire l'animation de la banque dans l'aperçu">▶ LECTURE</button>
+            <button id="btnStop" class="btn" title="Arrêter la lecture" disabled>■ STOP</button>
+          </div>
+          <p id="animInfo" class="anim-info">—</p>
+        </aside>
+      </main>
+
+      <!-- ═══════════════════ Sélecteur de caractères & police ═══════════════════ -->
+      <section class="panel" id="panelCharset">
+        <div class="charset-head">
+          <h2><i></i>Caractères <span id="pageInfo" class="h-info"></span></h2>
+          <div class="row charset-nav">
+            <label class="font-sel">Police
+              <select id="selFont" title="Police de RENDU — la donnée du sprite ne change pas"></select>
+            </label>
+            <button id="btnPagePrev" class="btn" title="Page de 256 caractères précédente">◀</button>
+            <select id="selPages" title="Pages remarquables"></select>
+            <button id="btnPageNext" class="btn" title="Page de 256 caractères suivante">▶</button>
+            <label>Page <input id="inPage" type="number" min="0" max="4351" value="37" title="Numéro de page (0 à 0x10FF — pages astrales incluses)" /></label>
+          </div>
+        </div>
+        <div id="glyphGrid" class="glyph-grid"></div>
+        <div class="quick-wrap">
+          <p class="pal-label">ACCÈS RAPIDE</p>
+          <div id="quickRow" class="quick"></div>
+        </div>
+      </section>
+
+      <!-- ═══════════════════ Ligne d'état ═══════════════════ -->
+      <footer id="statusbar">
+        <span class="led" aria-hidden="true"></span><span class="ready">PRÊT</span>
+        <span id="msg" class="msg"></span>
+        <span class="sb-right">STAS · stas-sprites · zéro dépendance · ES modules</span>
+      </footer>
+    </div>
+
+    <!-- Voile affiché pendant un glisser-déposer de fichier -->
+    <div id="dropZone" aria-hidden="true">
+      <div>DÉPOSER UNE BANQUE<br /><small>.stasprite / .json</small></div>
+    </div>
+
+    <script type="module" src="./editor.js"></script>
+  </body>
+</html>

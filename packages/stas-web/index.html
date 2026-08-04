@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>STAS — STOS ASCII System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=VT323&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #141414;
+      }
+      #wrap {
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #screen {
+        background: #000;
+        image-rendering: pixelated;
+        max-width: 100%;
+        max-height: 100%;
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "@stas/core": "../stas-core/index.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="wrap">
+      <canvas id="screen" width="640" height="400"></canvas>
+    </div>
+    <!-- bundle UMD aalib.js (benchmark ?renderer=aalib), global `aalib` -->
+    <script src="./vendor/aalib.js"></script>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Logs and temporary data
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Data directory (exclude all content)
+data/
+
+# Build outputs
+dist/
+build/
+.vite/
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.VolumeIcon.icns
+
+# IDEs
+.idea/
+
+# Misc
+*.bak
+*.swp
+*~
+/Volumes/Travail/Archives-Development/

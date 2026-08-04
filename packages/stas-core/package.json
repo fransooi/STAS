@@ -1,0 +1,11 @@
+{
+  "name": "@stas/core",
+  "version": "0.1.0",
+  "description": "Cœur de l'interpréteur STAS — 100% JavaScript pur, zéro dépendance plateforme.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "license": "MIT"
+}

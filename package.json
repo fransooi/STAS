@@ -1,0 +1,27 @@
+{
+  "name": "stas",
+  "version": "0.1.0",
+  "description": "STAS — STOS ASCII System. STOS BASIC (c) François Lionet, renaît en ASCII pour console et navigateur.",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/stas-core",
+    "packages/stas-console",
+    "packages/stas-web",
+    "packages/stas-world",
+    "packages/stas-sprites"
+  ],
+  "scripts": {
+    "stas": "node packages/stas-console/bin/stas.js",
+    "serve": "node packages/stas-web/serve.js",
+    "test": "node --test test/"
+  },
+  "keywords": [
+    "stos",
+    "basic",
+    "atari-st",
+    "ascii",
+    "retro"
+  ],
+  "license": "MIT"
+}

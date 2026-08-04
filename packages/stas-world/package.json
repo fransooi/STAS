@@ -1,0 +1,9 @@
+{
+  "name": "@stas/world",
+  "version": "0.1.0",
+  "description": "STAS + AWI : la console STAS comme porte d'entree des mondes AWI. Shell hote,Legal-Fractal, navigation entre mondes.",
+  "type": "module",
+  "main": "src/world.js",
+  "bin": { "stas-world": "bin/stas-world.js" },
+  "license": "MIT"
+}

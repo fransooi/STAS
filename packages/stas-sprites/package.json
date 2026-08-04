@@ -1,0 +1,19 @@
+{
+  "name": "@stas/sprites",
+  "version": "0.1.0",
+  "description": "Éditeur de sprites ASCII — port de SPRITE.ASC (François Lionet, 1987). Grille de caractères Unicode, outils de dessin, police au choix, banque + animation en un fichier, export JSON/TXT/ANSI.",
+  "type": "module",
+  "main": "index.js",
+  "bin": { "stas-sprites": "bin/stas-sprites.js" },
+  "exports": {
+    ".": "./index.js",
+    "./sprite": "./src/sprite.js",
+    "./tools": "./src/tools.js",
+    "./bank": "./src/bank.js",
+    "./save": "./src/save.js",
+    "./charset": "./src/charset.js",
+    "./fonts": "./src/fonts.js"
+  },
+  "keywords": ["stos", "ascii", "sprite", "editor", "unicode", "retro"],
+  "license": "MIT"
+}
