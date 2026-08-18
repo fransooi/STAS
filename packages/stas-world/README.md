@@ -96,6 +96,37 @@ Sans hote branche, STAS simule les reponses du monde (auth accordee, accueil)
 pour rester demo-able ; des qu'un listener `message` existe, la simulation
 s'efface et WorldSTAS prend la main.
 
+## Stockage — mockup du connecteur AWI (phase 3)
+
+`SAVE` / `LOAD` du BASIC passent par un connecteur, pas par le systeme de
+fichiers directement :
+
+```js
+import { LocalStasConnector } from "@stas/world";
+
+const storage = new LocalStasConnector({ user: "loic" });
+stas.io.sendCommand = (command, parameters) => storage.sendMessage(command, parameters);
+stas.io.userName = "loic";
+```
+
+Contrat calque sur `awi.connectors.editor` (EdHttp / EdNetwork / Answer) :
+
+- commande `"stas:save"` / `"stas:load"` — forme `connecteur:commande`,
+  routee vers `command_save` / `command_load` comme `dispatchMessage`
+- parametres `{ path, source?, userName? }`
+- reponse `Answer { success, error, data, message, info }` ;
+  `data.stosCode` traduit un echec en erreur STOS (48, 53, 16)
+- le prefixe `examples:` designe le dossier `examples/` de
+  l'installation STAS (remappage calcule depuis le module, valable depuis
+  n'importe quel repertoire courant — comme `STAS.bat`) ; les autres
+  chemins relatifs partent du repertoire courant
+- enveloppe transport `{ id, responseTo, parameters }` (EdHttp.reply) prete
+  pour HTTP/WebSocket
+
+Quand `ConnectorStas.hx` existera cote AWI, il suffira de remplacer
+`LocalStasConnector` par un client qui parle au meme contrat — le BASIC
+(ni le coeur STAS) n'y verront aucune difference.
+
 ## Grammaire de rendu
 
 Alignee sur les personas AWI existantes (`ConnectorConfiguration.hx`

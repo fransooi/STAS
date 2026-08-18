@@ -24,7 +24,7 @@ const MIME = {
   ".svg": "image/svg+xml",
 };
 
-createServer(async (req, res) => {
+const server = createServer(async (req, res) => {
   let p;
   try {
     p = decodeURIComponent(new URL(req.url, "http://localhost").pathname);
@@ -73,7 +73,21 @@ createServer(async (req, res) => {
     res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
     res.end("404 — " + safe);
   }
-}).listen(PORT, () => {
-  console.log("STAS web → http://localhost:" + PORT + "/");
+});
+
+server.on("error", (e) => {
+  if (e.code === "EADDRINUSE") {
+    console.error(
+      "[stas] port " + PORT + " is already in use - another STAS instance running?"
+    );
+    console.error("[stas] stop it (Ctrl-C) or use another port: PORT=8081 npm run serve");
+  } else {
+    console.error("[stas] server error:", e.message);
+  }
+  process.exit(1);
+});
+
+server.listen(PORT, () => {
+  console.log("STAS web -> http://localhost:" + PORT + "/");
   console.log("[stas] ROOT = " + ROOT);
 });

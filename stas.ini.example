@@ -1,0 +1,39 @@
+; STAS — configuration exemple.
+; --------------------------------------------------------------------
+; Copier/adapter selon le besoin. Chaque section vise un adaptateur.
+;
+; Console :
+;   stas demo.bas --config=stas.ini
+;   (sans --config=, un fichier demo.ini à côté de demo.bas est
+;    chargé automatiquement s'il existe — config par démo)
+; Web :
+;   index.html?config=stas.ini
+;   (les paramètres d'URL restent prioritaires sur le fichier)
+;
+; Format : [section] puis cle=valeur ; commentaires ; ou #
+; --------------------------------------------------------------------
+
+[console]
+; Zone de rendu FIXE (10..320 colonnes x 5..200 lignes). Le terminal
+; peut être retaillé : la zone ne bouge pas, l'écran est juste repeint.
+; MODE non plus ne la redimensionne plus.
+; Sans screen= : le buffer prend la taille du terminal au démarrage.
+screen=80x25
+; Comportement au retaillage du terminal :
+;   fixed  (défaut) la zone de rendu ne change pas
+;   follow          le buffer suit la taille du terminal
+;                   (ignoré si screen= est fixé)
+resize=fixed
+; Nom d'utilisateur (reserve Volt.A / AWI). Valeur bidon acceptee.
+user=dummy
+
+[web]
+; renderer : canvas (défaut) | pixel (alias atari) | aalib
+renderer=pixel
+; Résolutions :
+;   res=  les deux grilles ensemble (texte + ascii-art)
+;   text= buffer texte seul (verrouillé contre MODE)
+;   gfx=  grille ascii-art seule (renderer aalib uniquement)
+res=80x25
+; Programme à charger au démarrage :
+; run=examples/sinus-anim.bas

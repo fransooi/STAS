@@ -114,6 +114,17 @@ export class ConsoleInput {
         this._esc = 1;
         continue;
       }
+      if (ch === "\x03") {
+        // Ctrl-C : Break pendant un RUN, sinon on quitte
+        if (this.stas.interp.running) {
+          this.stas.requestBreak();
+        } else {
+          this.stop();
+          process.stdout.write("\x1b[0m\n");
+          process.exit(0);
+        }
+        continue;
+      }
       if (this._pending) this._lineChar(ch);
       else if (ch >= " ") this._keys.push(ch);
     }

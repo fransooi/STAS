@@ -79,6 +79,54 @@ function penPaper(it, which) {
   }
 }
 
+/** INK n : couleur de tracé graphique uniquement (le texte garde son PEN). */
+function doInk(it) {
+  const n = it.toInt(it.evalExpr());
+  if (n < 0 || n > 15) it.err(ERR.FON_CALL);
+  it.io.ink = n;
+  if (it.io.gfx) it.io.gfx.curPen = n;
+}
+
+/** CENTRE s$ : écrit la chaîne centrée sur la ligne courante. */
+function doCentre(it) {
+  const s = it.toStr(it.evalExpr());
+  const b = it.buffer;
+  b.locate(Math.max(0, (b.width - s.length) >> 1), b.cy);
+  b.write(s + "\n");
+}
+
+/** PLAY canal,hauteur,volume[,...] — sons : M4 (silencieux en ASCII). */
+function doPlay(it) {
+  it.toInt(it.evalExpr());
+  while (it.eatRaw(",")) it.toInt(it.evalExpr());
+}
+
+/** FLASH/KEY/CLICK ON|OFF, HIDE, SHOW — décor écran/clavier/souris : no-op. */
+function doFlag(it) {
+  it.eat(T.ON) || it.eat(T.OFF);
+}
+
+/** RESERVE AS SCREEN|WORK|DATA|DATASCREEN n[,taille] — banques mémoire. */
+function doReserve(it) {
+  const t = it.peek();
+  const kinds = [
+    [SUB.AS_SCREEN, "screen"], [SUB.AS_WORK, "work"],
+    [SUB.AS_DATA, "data"], [SUB.AS_DATASCREEN, "datascreen"],
+  ];
+  let kind = null;
+  if (t && t.code === T.ETENDU) {
+    for (const [sub, name] of kinds) {
+      if (t.sub === sub) { kind = name; it.next(); break; }
+    }
+  }
+  if (!kind) it.err(ERR.SYNTAX);
+  const n = it.toInt(it.evalExpr());
+  if (n < 0 || n > 15) it.err(ERR.FON_CALL);
+  if (n === 15) it.err(ERR.BANK15_MENU);   // banque 15 = menus (STOS)
+  if (it.eatRaw(",")) it.toInt(it.evalExpr()); // taille (work/data) : symbolique
+  it.io.banks.set(n, kind);
+}
+
 function doIncDec(it, sign) {
   const lv = it.parseLvalue();
   let n = 1;
@@ -119,6 +167,10 @@ function doMode(it) {
   io.physic = new PixelScreen();            // MODE réinitialise les écrans
   io.logic = new PixelScreen();
   io.gfxActive = true;
+  if (io.ink != null) {                     // l'INK donnée avant MODE survit
+    io.physic.curPen = io.ink;
+    io.logic.curPen = io.ink;
+  }
   io.physic.clear(it.buffer.curPaper);
   io.logic.clear(it.buffer.curPaper);
   io.asciiCache = null;
@@ -157,12 +209,18 @@ function targets(it) {
   return io.autoback ? [io.logic, io.physic] : [io.logic];
 }
 
+/** Encre de tracé courante : INK si donnée, sinon PEN (toute la scène). */
+function inkColor(it) {
+  return it.io.gfx ? it.io.gfx.curPen
+    : it.io.ink != null ? it.io.ink : it.buffer.curPen;
+}
+
 function putAll(tg, x, y, col) {
   for (const s of tg) s.set(x | 0, y | 0, col);
 }
 
 function optColor(it) {
-  if (!it.eatRaw(",")) return it.buffer.curPen;   // sans ,c : PEN courant
+  if (!it.eatRaw(",")) return inkColor(it);      // sans ,c : encre courante
   const c = it.toInt(it.evalExpr());
   if (c < 0 || c > 15) it.err(ERR.FON_CALL);
   return c;
@@ -284,6 +342,53 @@ function doBar(it) {
   for (let y = ya; y <= yb; y++) hline(tg, xa, xb, y, col);
 }
 
+/** Coins arrondis d'un RBOX/RBAR — quart de cercle par coin. */
+function rboxCorners(tg, xa, ya, xb, yb, r, col, fill) {
+  const arc = (cx, cy, sx, sy) => {
+    for (let dx = 0; dx <= r; dx++) {
+      const dy = Math.round(Math.sqrt(r * r - dx * dx));
+      if (fill) hline(tg, cx - (sx < 0 ? dx : 0), cx + (sx > 0 ? dx : 0), cy + sy * dy, col);
+      else putAll(tg, cx + sx * dx, cy + sy * dy, col);
+    }
+  };
+  arc(xa + r, ya + r, -1, -1);   // haut-gauche
+  arc(xb - r, ya + r, 1, -1);    // haut-droit
+  arc(xa + r, yb - r, -1, 1);    // bas-gauche
+  arc(xb - r, yb - r, 1, 1);     // bas-droit
+}
+
+function doRBox(it) {
+  const tg = targets(it);
+  const [x1, y1, x2, y2] = readRect(it);
+  const col = optColor(it);
+  const xa = Math.min(x1, x2), xb = Math.max(x1, x2);
+  const ya = Math.min(y1, y2), yb = Math.max(y1, y2);
+  const r = Math.min(6, (xb - xa) >> 1, (yb - ya) >> 1);
+  if (r <= 0) {                  // trop petit : un BOX simple
+    hline(tg, xa, xb, ya, col); hline(tg, xa, xb, yb, col);
+    vline(tg, ya, yb, xa, col); vline(tg, ya, yb, xb, col);
+    return;
+  }
+  hline(tg, xa + r, xb - r, ya, col); hline(tg, xa + r, xb - r, yb, col);
+  vline(tg, ya + r, yb - r, xa, col); vline(tg, ya + r, yb - r, xb, col);
+  rboxCorners(tg, xa, ya, xb, yb, r, col, false);
+}
+
+function doRBar(it) {
+  const tg = targets(it);
+  const [x1, y1, x2, y2] = readRect(it);
+  const col = optColor(it);
+  const xa = Math.min(x1, x2), xb = Math.max(x1, x2);
+  const ya = Math.min(y1, y2), yb = Math.max(y1, y2);
+  const r = Math.min(6, (xb - xa) >> 1, (yb - ya) >> 1);
+  if (r <= 0) {
+    for (let y = ya; y <= yb; y++) hline(tg, xa, xb, y, col);
+    return;
+  }
+  for (let y = ya + r; y <= yb - r; y++) hline(tg, xa, xb, y, col);
+  rboxCorners(tg, xa, ya, xb, yb, r, col, true);
+}
+
 function doCircle(it) {
   const tg = targets(it);
   const cx = it.toInt(it.evalExpr()); it.expectRaw(",");
@@ -313,8 +418,26 @@ function doPaint(it) {
 function doDraw(it) {
   const tg = targets(it);
   const g = tg[0];
+  // Forme numérique : draw x1,y1 to x2,y2  (ou draw to x2,y2 : curseur gfx)
+  const t = it.peek();
+  const isStr = t && (t.code === T.ALPHA ||
+    (t.code === T.VARIABLE && t.name.endsWith("$")));
+  if (!isStr) {
+    let x1 = g.gx, y1 = g.gy;
+    if (!it.eat(T.TO)) {
+      x1 = it.toInt(it.evalExpr()); it.expectRaw(",");
+      y1 = it.toInt(it.evalExpr());
+      if (!it.eat(T.TO)) it.err(ERR.SYNTAX);
+    }
+    const x2 = it.toInt(it.evalExpr()); it.expectRaw(",");
+    const y2 = it.toInt(it.evalExpr());
+    lineBres(tg, x1, y1, x2, y2, optColor(it));
+    for (const s of tg) { s.gx = x2; s.gy = y2; }
+    return;
+  }
+  // Forme tortue : draw "r10 d20 ..." (chaîne, comme le STOS)
   const s = it.toStr(it.evalExpr());
-  let col = it.buffer.curPen, cx = g.gx, cy = g.gy;
+  let col = inkColor(it), cx = g.gx, cy = g.gy;
   const n = s.length;
   let i = 0;
   const skipSep = () => { while (i < n && (s[i] === " " || s[i] === ",")) i++; };
@@ -482,13 +605,25 @@ async function doRun(it) {
 }
 
 async function doList(it) {
+  // LIST | LIST n | LIST n,m | LIST n-m | LIST n- | LIST -m
   let from = -Infinity;
   let to = Infinity;
-  if (!it.atEos()) {
-    from = it.toInt(it.evalExpr());
-    to = from;
-    if (it.eatRaw(",")) to = it.toInt(it.evalExpr());
+  const lineNo = () => {
+    const t = it.peek();
+    if (!t || t.code !== T.ENTIER) return null;
+    it.next();
+    return t.value;
+  };
+  if (!it.atEos() && it.eat(T.MOINS)) {
+    // "-m" : du début jusqu'à m
+    to = lineNo();
+  } else if (!it.atEos()) {
+    from = to = lineNo();
+    if (it.eat(T.MOINS) || it.eatRaw(",")) {
+      to = it.atEos() ? Infinity : lineNo(); // "n-" garde la borne ouverte
+    }
   }
+  if (from === null || to === null) it.err(ERR.SYNTAX);
   for (const line of it.program.lines) {
     if (line.num < from || line.num > to) continue;
     it.buffer.write(line.num + " " + detokenize(line.tokens) + "\n");
@@ -502,6 +637,82 @@ function doDelete(it) {
   if (it.program.deleteRange(from, to) === 0) it.err(ERR.NO_LINE);
 }
 
+// ---------------------------------------------------------------------------
+//  SAVE / LOAD — passent par le connecteur AWI (io.sendCommand).
+//  Contrat de messages calqué sur awi.connectors.editor (EdHttp/EdNetwork) :
+//    commande  "stas:save" / "stas:load"  (connecteur:commande)
+//    paramètres { path, source?, userName? }
+//    réponse   Answer { success, error, data, message } (awi.base.Answer),
+//              data.stosCode traduit une défaillance en erreur STOS.
+//  Sans connecteur branché : erreur 20 "Function not implemented",
+//  comme tout le vocabulaire STOS pas encore implémenté.
+// ---------------------------------------------------------------------------
+
+/** Mange un mot-clé étendu précis (SAVE AS → SUB.AS). */
+function eatSub(it, sub) {
+  const t = it.peek();
+  if (t && t.code === T.ETENDU && t.sub === sub) {
+    it.next();
+    return true;
+  }
+  return false;
+}
+
+/** Mange une chaîne littérale "nom.bas" ; null si absente. */
+function eatString(it) {
+  const t = it.peek();
+  if (t && t.code === T.ALPHA) {
+    it.next();
+    return t.value;
+  }
+  return null;
+}
+
+/** SAVE/LOAD sans nom : demande le chemin à l'invite (comme INPUT). */
+async function askPath(it) {
+  const prompt = it.langue ? "Nom de fichier : " : "Filename: ";
+  const name = (await it.readInput(prompt)).trim();
+  if (!name) it.err(ERR.BAD_FILE_NAME);
+  return name;
+}
+
+/** Envoie la commande au connecteur ; traduit l'échec en erreur STOS. */
+async function storageSend(it, command, parameters) {
+  if (!it.io.sendCommand) it.err(ERR.NOT_IMPL);
+  const params = { ...parameters };
+  if (it.io.userName != null) params.userName = it.io.userName;
+  const answer = await it.io.sendCommand(command, params);
+  if (!answer || answer.success !== true) {
+    const code = answer?.data?.stosCode;
+    it.err(Number.isInteger(code) ? code : ERR.IN_OUT);
+  }
+  return answer;
+}
+
+async function doSave(it) {
+  const isAs = eatSub(it, SUB.AS); // SAVE AS : force un nouveau nom
+  let path = eatString(it);
+  if (!path && !isAs) path = it.io.currentPath ?? null;
+  if (!path) path = await askPath(it);
+  const source = it.program.toSource();
+  const answer = await storageSend(it, "stas:save", { path, source });
+  it.io.currentPath = answer.data.path ?? path;
+  it.buffer.write(
+    (it.langue ? "Sauvegarde : " : "Saved: ") + it.io.currentPath + "\n"
+  );
+}
+
+async function doLoad(it) {
+  let path = eatString(it);
+  if (!path) path = await askPath(it);
+  const answer = await storageSend(it, "stas:load", { path });
+  const source = answer.data.source ?? "";
+  it.program.clear();
+  it.program.load(source, { merge: false, langue: it.langue });
+  it.clearVars();
+  it.io.currentPath = answer.data.path ?? path;
+}
+
 async function doLet(it) {
   const t = it.eat(T.VARIABLE);
   if (!t) it.err(ERR.SYNTAX);
@@ -511,9 +722,20 @@ async function doLet(it) {
 export const EXT_INSTRUCTIONS = new Map([
   [SUB.BOX, doBox],
   [SUB.BAR, doBar],
+  [SUB.RBOX, doRBox],
+  [SUB.RBAR, doRBar],
   [SUB.CIRCLE, doCircle],
   [SUB.ELLIPSE, doEllipse],
   [SUB.PAINT, doPaint],
+  [SUB.INK, doInk],
+  [SUB.CENTRE, doCentre],
+  [SUB.PLAY, doPlay],
+  [SUB.FLASH, doFlag],
+  [SUB.KEY, doFlag],
+  [SUB.CLICK, doFlag],
+  [SUB.HIDE, (it) => {}],
+  [SUB.SHOW, (it) => {}],
+  [SUB.RESERVE, doReserve],
   [SUB.INPUT, doInput],
   [SUB.LINEINPUT, doLineInput],
   [SUB.DATA, (it) => it.skipStatement()],
@@ -538,7 +760,9 @@ export const EXT_INSTRUCTIONS = new Map([
   [SUB.LET, doLet],
   [SUB.RUN, doRun],
   [SUB.LIST, doList],
-  [SUB.NEW, (it) => { it.program.clear(); it.clearVars(); }],
+  [SUB.NEW, (it) => { it.program.clear(); it.clearVars(); it.io.currentPath = null; }],
+  [SUB.SAVE, doSave],
+  [SUB.LOAD, doLoad],
   [SUB.DELETE, doDelete],
   [SUB.ENGLISH, (it) => { it.langue = 0; }],
   [SUB.FRANCAIS, (it) => { it.langue = 1; }],
@@ -560,6 +784,14 @@ export const EXT_DIRECT_ONLY = new Set([
 // ===========================================================================
 
 export const FUNC_TABLE = new Map([
+  [T.START, (it) => {
+    // START(n) : adresse fictive de la banque n (32000 octets par banque,
+    // base $60000 comme sur ST — seule l'existence compte en ASCII)
+    const n = it.toInt(it.args(1, 1)[0]);
+    if (n < 0 || n > 15) it.err(ERR.FON_CALL);
+    if (!it.io.banks || !it.io.banks.has(n)) it.err(ERR.BANK_NOT_RES); // 44
+    return INT(0x60000 + n * 0x8000);
+  }],
   [T.ABS, (it) => {
     const v = it.args(1, 1)[0];
     const x = it.toNum(v);

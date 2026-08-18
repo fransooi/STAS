@@ -302,6 +302,9 @@ export class Interpreter {
         return;
       case T.VARIABLE:
         return this.doAssignWith(tok.name);
+      case T.LOGIC:
+      case T.PHYSIC:
+        return this.doSysVarAssign(tok.code === T.LOGIC ? "logic" : "physic");
       case T.GOTO:
         return this.doGotoTo(this.toInt(this.evalExpr()));
       case T.GOSUB:
@@ -544,6 +547,16 @@ export class Interpreter {
     return { name: t.name, dims };
   }
 
+  /**
+   * Affectation d'une variable système (LOGIC=..., PHYSIC=...).
+   * Ces "adresses" sont symboliques en ASCII : on mémorise la valeur,
+   * comme le STOS mémorisait l'adresse de base de l'écran logique.
+   */
+  doSysVarAssign(name) {
+    if (!this.eat(T.EGAL)) this.err(ERR.SYNTAX);
+    this.setVar(name, this.evalExpr());
+  }
+
   async doAssignWith(name) {
     let dims = null;
     if (this.eatRaw("(")) {
@@ -755,6 +768,10 @@ export class Interpreter {
         }
         return this.getVar(t.name);
       }
+      case T.LOGIC:
+        return this.getVar("logic");
+      case T.PHYSIC:
+        return this.getVar("physic");
       case T.EXT_FUNC: {
         const h = EXTFUNC_TABLE.get(t.sub);
         if (!h) this.err(ERR.NOT_IMPL);

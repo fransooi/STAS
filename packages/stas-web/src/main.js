@@ -2,9 +2,10 @@
  *  STAS web — point d'entrée : canvas + clavier + REPL + postMessage.
  */
 
-import { Stas, StosError, makeEcho, introText } from "@stas/core";
+import { Stas, StosError, makeEcho, introText, parseIni, parseRes } from "@stas/core";
 import { CanvasRenderer } from "./canvas-renderer.js";
 import { AalibRenderer } from "./aalib-renderer.js";
+import { PixelRenderer } from "./pixel-renderer.js";
 import { WebInput } from "./input.js";
 import { initPostMessage } from "./postmessage-api.js";
 
@@ -13,45 +14,50 @@ const langue = (navigator.language || "en").toLowerCase().startsWith("fr")
   ? 1
   : 0;
 
-// --- réglages de résolution (?res= / ?text= / ?gfx=) ---------------------
-// Deux résolutions indépendantes :
-//   ?text=WxH : la grille du BUFFER TEXTE (verrouillée : MODE ne la
-//               redimensionne plus, sinon le MODE 0 des programmes 1988
-//               déferait le réglage) ;
-//   ?gfx=WxH  : la grille du RENDERER ascii-art (renderer aalib seulement,
-//               qui sait la découpler du texte) ;
-//   ?res=WxH  : raccourci = les deux à la même résolution.
-// Sans paramètre : fidélité STOS totale (MODE choisit la grille).
+// --- réglages : ?config= + paramètres d'URL ------------------------------
+// Un fichier INI (section [web]) peut porter tous les réglages ; les
+// paramètres d'URL restent prioritaires. Deux résolutions indépendantes :
+//   text=WxH : la grille du BUFFER TEXTE (verrouillée : MODE ne la
+//              redimensionne plus, sinon le MODE 0 des programmes 1988
+//              déferait le réglage) ;
+//   gfx=WxH  : la grille du RENDERER ascii-art (renderer aalib seulement,
+//              qui sait la découpler du texte) ;
+//   res=WxH  : raccourci = les deux à la même résolution.
+// Sans réglage : fidélité STOS totale (MODE choisit la grille).
 const _params = new URLSearchParams(location.search);
-function parseRes(s, name) {
-  const m = /^\s*(\d+)\s*x\s*(\d+)\s*$/i.exec(s || "");
-  if (!m) {
-    console.warn(`[stas-web] ?${name}=${s} ignoré (format WxH attendu)`);
-    return null;
+let _cfg = {};
+const _configPath = _params.get("config");
+if (_configPath) {
+  try {
+    const _r = await fetch(_configPath);
+    if (!_r.ok) throw new Error("HTTP " + _r.status);
+    _cfg = parseIni(await _r.text()).web || {};
+  } catch (e) {
+    console.warn(`[stas-web] ?config=${_configPath} illisible : ${e.message}`);
   }
-  const cols = +m[1];
-  const rows = +m[2];
-  if (cols < 10 || cols > 320 || rows < 5 || rows > 200) {
-    console.warn(
-      `[stas-web] ?${name}=${s} ignoré (10..320 colonnes, 5..200 lignes)`
-    );
-    return null;
-  }
-  if (320 % cols !== 0 || 200 % rows !== 0) {
-    console.warn(
-      `[stas-web] ?${name}=${s} : pas diviseur de 320x200 -> blocs fractionnaires`
-    );
-  }
-  return { cols, rows };
 }
-const _get = (k) => _params.get(k);
-const _resParam = _get("res") ? parseRes(_get("res"), "res") : null;
-const _textRes =
-  _resParam ?? (_get("text") ? parseRes(_get("text"), "text") : null);
-const _gfxRes =
-  _resParam ?? (_get("gfx") ? parseRes(_get("gfx"), "gfx") : null);
-if (_resParam && (_get("text") || _get("gfx"))) {
-  console.warn("[stas-web] ?res= prioritaire sur ?text=/?gfx=");
+// URL d'abord, INI ensuite, défauts enfin.
+const _opt = (k) => _params.get(k) ?? _cfg[k] ?? null;
+function readRes(name) {
+  const s = _opt(name);
+  if (!s) return null;
+  const r = parseRes(s);
+  if (!r) {
+    console.warn(`[stas-web] ${name}=${s} ignoré (format WxH, 10..320 x 5..200)`);
+    return null;
+  }
+  if (320 % r.cols !== 0 || 200 % r.rows !== 0) {
+    console.warn(
+      `[stas-web] ${name}=${s} : pas diviseur de 320x200 -> blocs fractionnaires`
+    );
+  }
+  return r;
+}
+const _resParam = readRes("res");
+const _textRes = _resParam ?? readRes("text");
+const _gfxRes = _resParam ?? readRes("gfx");
+if (_resParam && (_opt("text") || _opt("gfx"))) {
+  console.warn("[stas-web] res= prioritaire sur text=/gfx=");
 }
 
 const stas = new Stas({
@@ -63,26 +69,33 @@ const stas = new Stas({
 if (_textRes) stas.io.lockTextRes = true;
 
 const canvas = document.getElementById("screen");
-// ?renderer=aalib : benchmark aalib.js (sinon renderer historique).
-const _wantAalib = _params.get("renderer") === "aalib";
+// renderer= : aalib (benchmark ascii-art) | pixel/atari (copie pixels
+// native) | defaut = renderer historique canvas.
+const _rendererName = _opt("renderer");
+const _wantAalib = _rendererName === "aalib";
+const _wantPixel = _rendererName === "pixel" || _rendererName === "atari";
 if (_wantAalib && !globalThis.aalib) {
   console.warn(
     "[stas-web] ?renderer=aalib mais vendor/aalib.js absent -> CanvasRenderer"
   );
 }
 const _aalibOk = _wantAalib && globalThis.aalib;
-// Masque legacy : le renderer historique compose 1 glyphe gfx par cellule
-// texte (cellAt) ; une grille gfx différente du texte n'y a pas de sens.
+// Masque legacy : seuls les renderers qui découplent la grille ascii du
+// texte (aalib) donnent un sens à ?gfx= ; le renderer canvas compose 1
+// glyphe gfx par cellule texte (cellAt) et le renderer pixel est toujours
+// en 320x200 natif.
 if (!_aalibOk && _gfxRes &&
     (!_textRes || _textRes.cols !== _gfxRes.cols || _textRes.rows !== _gfxRes.rows)) {
   console.warn(
-    "[stas-web] ?gfx= ignoré : le renderer canvas suit la grille texte " +
+    "[stas-web] ?gfx= ignoré : ce renderer suit la grille texte " +
       "(?renderer=aalib pour découpler les deux résolutions)"
   );
 }
 const renderer = _aalibOk
   ? new AalibRenderer(stas, canvas, { gfx: _gfxRes })
-  : new CanvasRenderer(stas, canvas);
+  : _wantPixel
+    ? new PixelRenderer(stas, canvas)
+    : new CanvasRenderer(stas, canvas);
 const input = new WebInput(stas);
 input.onDirty = () => renderer.render();
 stas.io.onScreen = () => {
@@ -113,7 +126,7 @@ if (document.fonts?.ready) {
 async function repl() {
   stas.buffer.write(introText(langue));
   for (;;) {
-    stas.buffer.write("Ok\n");
+    stas.buffer.write("STAS>"); // pas de \n : le curseur reste à droite du >
     renderer.render(true);
     const line = await input.readLine(makeEcho(stas.buffer));
     if (line === null) break;
@@ -130,11 +143,14 @@ async function repl() {
   }
 }
 
-// --- lancement : ?run= charge + exécute un .bas, sinon REPL interactif -----
-const _runPath = _params.get("run");
+// --- lancement : run=, edit=, ou REPL interactif ------------------------
+const _runPath = _opt("run");
+const _editPath = _opt("edit");
+const _userName = _opt("user");
+
 if (_runPath) {
   const _url = _runPath.startsWith("/") ? _runPath : "/" + _runPath;
-  console.log("[stas-web] ?run= -> fetch " + _url);
+  console.log("[stas-web] run= -> fetch " + _url);
   stas.buffer.write("STAS — chargement " + _url + "\n");
   renderer.render(true);
   try {
@@ -143,16 +159,40 @@ if (_runPath) {
     const _src = await _res.text();
     stas.loadSource(_src, { merge: false });
     await stas.run();
-    renderer.render(true); // écran final figé (REPL non relancé)
+    renderer.render(true); // ecran final fige (REPL non relance)
   } catch (e) {
-    console.error("[stas-web] ?run= erreur :", e);
+    console.error("[stas-web] run= erreur :", e);
     const _m =
       e instanceof StosError
         ? e.message
-        : "?run=" + _url + " : " + (e && e.message ? e.message : String(e));
+        : "run=" + _url + " : " + (e && e.message ? e.message : String(e));
     stas.buffer.write(_m + "\n");
     renderer.render(true);
   }
+} else if (_editPath) {
+  const _url = _editPath.startsWith("/") ? _editPath : "/" + _editPath;
+  console.log("[stas-web] edit= -> fetch " + _url);
+  stas.buffer.write("STAS — edition " + _url + "\n");
+  if (_userName) stas.buffer.write("Utilisateur: " + _userName + "\n");
+  renderer.render(true);
+  (async () => {
+    try {
+      const _res = await fetch(_url);
+      if (!_res.ok) throw new Error("HTTP " + _res.status);
+      const _src = await _res.text();
+      stas.loadSource(_src, { merge: false });
+      if (!stas.program.isEmpty) {
+        stas.buffer.write(stas.program.toSource() + "\n");
+      } else {
+        stas.buffer.write("(vide)\n");
+      }
+    } catch (e) {
+      console.error("[stas-web] edit= erreur :", e);
+      stas.buffer.write("Erreur de chargement : " + (e.message || e) + "\n");
+    }
+    renderer.render(true);
+    repl();
+  })();
 } else {
   console.log("[stas-web] boot REPL");
   repl();

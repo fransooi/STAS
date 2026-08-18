@@ -28,6 +28,11 @@ import { out } from "./protocol.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Connecteur stockage — mockup local du ConnectorStas d'AWI (phase 3).
+// Meme contrat de messages que awi.connectors.editor (EdHttp/EdNetwork) :
+// commande "stas:save"/"stas:load", reponse Answer { success, ... }.
+export { LocalStasConnector, answerOk, answerError } from "./storage.js";
+
 /**
  *  Grammaire de rendu — alignee sur les personas AWI existantes
  *  (ConnectorConfiguration.hx L162-185) + les deux extensions de

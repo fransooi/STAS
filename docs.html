@@ -1,0 +1,1075 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>STAS — STOS ASCII System · Documentation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0b0c0f;
+      --bg-2: #13141a;
+      --bg-3: #1a1c26;
+      --bg-4: #232633;
+      --fg: #e8eaf0;
+      --muted: #9ca3af;
+      --accent: #00f0c8;
+      --accent-2: #f472b6;
+      --accent-3: #a78bfa;
+      --accent-4: #34d399;
+      --border: rgba(255, 255, 255, 0.08);
+      --font: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font);
+      line-height: 1.7;
+      font-size: 15px;
+      font-weight: 400;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    code, pre, kbd, samp {
+      font-family: var(--mono);
+      font-size: 0.92em;
+    }
+
+    code {
+      background: rgba(0, 240, 200, 0.08);
+      color: var(--accent);
+      padding: 0.15em 0.4em;
+      border-radius: 5px;
+      border: 1px solid rgba(0, 240, 200, 0.12);
+    }
+
+    pre {
+      background: var(--bg-3);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.15rem;
+      overflow-x: auto;
+      line-height: 1.55;
+    }
+
+    pre code {
+      background: transparent;
+      color: inherit;
+      padding: 0;
+      border: none;
+      border-radius: 0;
+    }
+
+    .container {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+    }
+
+    header {
+      position: relative;
+      padding: 5rem 0 3.5rem;
+      text-align: center;
+      background:
+        radial-gradient(circle at 50% 0%, rgba(0, 240, 200, 0.08), transparent 60%),
+        linear-gradient(180deg, var(--bg-2) 0%, var(--bg) 100%);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .brand {
+      font-size: 3.4rem;
+      font-weight: 700;
+      letter-spacing: -2px;
+      margin: 0 0 0.6rem;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .tagline {
+      color: var(--muted);
+      font-size: 1.15rem;
+      margin: 0;
+      max-width: 680px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .version-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 1.25rem;
+      padding: 0.35rem 0.85rem;
+      border-radius: 999px;
+      background: var(--bg-3);
+      border: 1px solid var(--border);
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .version-pill::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-4);
+      box-shadow: 0 0 8px var(--accent-4);
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(11, 12, 15, 0.92);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    nav ul {
+      list-style: none;
+      display: flex;
+      gap: 0.75rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin: 0;
+      padding: 0.85rem 0;
+    }
+
+    nav a {
+      color: var(--muted);
+      font-size: 0.88rem;
+      font-weight: 600;
+      padding: 0.35rem 0.7rem;
+      border-radius: 6px;
+      transition: color 0.2s, background 0.2s;
+    }
+
+    nav a:hover {
+      color: var(--fg);
+      background: var(--bg-3);
+      text-decoration: none;
+    }
+
+    main { padding-bottom: 4rem; }
+
+    section {
+      padding: 3.5rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    section:last-of-type { border-bottom: none; }
+
+    h2 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin: 0 0 1.25rem;
+      color: var(--fg);
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    h2::before {
+      content: '▸';
+      color: var(--accent);
+      font-size: 1.4rem;
+    }
+
+    h3 {
+      font-size: 1.3rem;
+      font-weight: 600;
+      margin: 2.5rem 0 0.9rem;
+      color: var(--accent-2);
+    }
+
+    h4 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin: 1.25rem 0 0.5rem;
+      color: var(--accent-3);
+    }
+
+    p { margin: 0 0 1.1rem; }
+
+    .lead {
+      font-size: 1.15rem;
+      color: var(--fg);
+      line-height: 1.75;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.1rem;
+      margin-top: 1.75rem;
+    }
+
+    .card {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.35rem;
+      transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(0, 240, 200, 0.25);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    }
+
+    .card h4 {
+      margin: 0 0 0.6rem;
+      color: var(--accent);
+    }
+
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.96rem;
+      line-height: 1.6;
+    }
+
+    .badge {
+      display: inline-block;
+      background: var(--bg-3);
+      color: var(--accent);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0.2rem 0.55rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-bottom: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .badge-alt { color: var(--accent-2); }
+    .badge-green { color: var(--accent-4); }
+    .badge-purple { color: var(--accent-3); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.25rem 0;
+      font-size: 0.95rem;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 0.75rem 0.85rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--accent);
+      font-weight: 600;
+      background: var(--bg-2);
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .diagram {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin: 1.5rem 0;
+      overflow-x: auto;
+      font-family: var(--mono);
+      color: var(--muted);
+      line-height: 1.7;
+      text-align: center;
+    }
+
+    .diagram strong { color: var(--accent); }
+
+    .example-box {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.1rem;
+      margin: 1rem 0;
+      transition: border-color 0.15s;
+    }
+
+    .example-box:hover { border-color: rgba(0, 240, 200, 0.2); }
+
+    .example-box code {
+      display: block;
+      word-break: break-all;
+      margin-bottom: 0.5rem;
+      background: transparent;
+      padding: 0;
+      border: none;
+    }
+
+    .example-box p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    ul, ol { padding-left: 1.4rem; margin: 1rem 0; }
+    li { margin-bottom: 0.4rem; }
+
+    .toc {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.25rem 1.5rem;
+      margin: 1.5rem 0;
+    }
+
+    .toc h4 {
+      margin: 0 0 0.75rem;
+      color: var(--fg);
+    }
+
+    .toc ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      columns: 2;
+      column-gap: 2rem;
+    }
+
+    .toc li { margin-bottom: 0.35rem; }
+
+    .toc a {
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .toc a:hover { color: var(--accent); }
+
+    .note {
+      border-left: 3px solid var(--accent);
+      background: rgba(0, 240, 200, 0.05);
+      padding: 1rem 1.1rem;
+      border-radius: 0 10px 10px 0;
+      margin: 1.25rem 0;
+      color: var(--fg);
+    }
+
+    .note-alt {
+      border-left-color: var(--accent-2);
+      background: rgba(244, 114, 182, 0.05);
+    }
+
+    .note strong { color: var(--accent); }
+    .note-alt strong { color: var(--accent-2); }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    footer {
+      text-align: center;
+      padding: 3rem 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+      border-top: 1px solid var(--border);
+    }
+
+    @media (max-width: 720px) {
+      .brand { font-size: 2.4rem; }
+      .toc ul { columns: 1; }
+      .two-col { grid-template-columns: 1fr; }
+      nav ul { gap: 0.4rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1 class="brand">STAS</h1>
+      <p class="tagline">STOS ASCII System — Runtime moderne pour programmes STOS BASIC dans le navigateur et le terminal</p>
+      <div class="version-pill">V1 · JavaScript pur · Node ≥ 18</div>
+    </div>
+  </header>
+
+  <nav>
+    <ul>
+      <li><a href="#projet">Le projet</a></li>
+      <li><a href="#demarrage">Démarrage</a></li>
+      <li><a href="#architecture">Architecture</a></li>
+      <li><a href="#langue">Langue V1</a></li>
+      <li><a href="#renderers">Renderers</a></li>
+      <li><a href="#resolutions">Résolutions</a></li>
+      <li><a href="#console">Console</a></li>
+      <li><a href="#browser">Navigateur</a></li>
+      <li><a href="#config">Configuration</a></li>
+      <li><a href="#iframe">iFrame</a></li>
+      <li><a href="#exemples">Exemples</a></li>
+    </ul>
+  </nav>
+
+  <main class="container">
+    <section id="projet">
+      <h2>Le projet</h2>
+      <p class="lead">
+        STAS est un runtime contemporain conçu pour exécuter des programmes écrits en
+        <strong>STOS BASIC</strong>, le dialecte BASIC de l'Atari ST popularisé à partir de
+        1988 par STOS Software et François Lionet. L'objectif est double : rejouer les
+        programmes historiques avec la plus grande fidélité possible, et permettre d'écrire
+        de nouvelles démos ou de nouveaux jeux dans une syntaxe et des abstractions proches
+        de l'original.
+      </p>
+      <p>
+        Le runtime s'articule autour d'un cœur d'interprétation écrit en JavaScript pur,
+        sans dépendance externe. Il tokenise un programme, simule sa machine virtuelle
+        (variables, tableaux, instructions graphiques et sonores) et produit une sortie
+        adaptable au navigateur ou au terminal.
+      </p>
+      <p>
+        À la différence d'un émulateur Atari complet, STAS ne reproduit pas le système
+        d'exploitation ni le matériel : il réimplante la sémantique du langage et des
+        primitives graphiques, ce qui le rend léger et directement exploitable dans un
+        navigateur moderne ou sous Node.js.
+      </p>
+
+      <div class="toc">
+        <h4>Points clés</h4>
+        <ul>
+          <li><a href="#demarrage">Démarrage rapide</a></li>
+          <li><a href="#architecture">Architecture en couches</a></li>
+          <li><a href="#renderers">Plusieurs renderers</a></li>
+          <li><a href="#resolutions">Résolutions texte et graphique</a></li>
+          <li><a href="#browser">Fonctionnement dans le navigateur</a></li>
+          <li><a href="#iframe">Intégration iframe</a></li>
+        </ul>
+      </div>
+
+      <h3>Pourquoi STAS ?</h3>
+      <p>
+        STOS BASIC était livré avec l'Atari ST et utilisait directement les traps VDI du
+        système pour afficher texte, graphismes, sprites et fenêtres. Recréer ce dialecte
+        sans Atari ni GEM implique de fournir un nouvel environnement d'affichage et
+        d'entrées/sorties. STAS choisit de remplacer ces traps matérielles par un buffer
+        unique de cellules de caractères, facilement affichable soit en terminal ANSI, soit
+        en canvas HTML.
+      </p>
+      <p>
+        Cette approche offre plusieurs avantages. Elle rend le moteur indépendant de la
+        plateforme : le même programme tourne dans le terminal et dans le navigateur sans
+        modification. Elle permet de jouer avec des résolutions variables et des modes de
+        rendu variés. Elle conserve l'esprit original : programmer en STOS, c'était avant tout
+        manipuler un écran de caractères et quelques primitives graphiques simples.
+      </p>
+    </section>
+
+    <section id="demarrage">
+      <h2>Démarrage rapide</h2>
+      <p>
+        Après le clone, l'installateur vérifie Node.js (≥ 18, aborte proprement sinon),
+        installe la commande <code>stas</code> (PATH sous Windows, wrapper sous
+        macOS/Linux) et valide par la suite de tests :
+      </p>
+
+      <pre><code># Windows (PowerShell, cmd ou double-clic)
+install.bat
+
+# macOS / Linux
+./install.sh</code></pre>
+
+      <p>
+        Aucune installation <code>npm</code> n'est nécessaire. Le projet utilise les modules
+        ES natifs de Node.js et des imports relatifs. Sans l'installateur, les commandes
+        restent accessibles directement :
+      </p>
+
+      <pre><code># Console interactive (invite "Ok", fidèle au STOS)
+node STAS/packages/stas-console/bin/stas.js
+
+# Exécuter un programme
+node STAS/packages/stas-console/bin/stas.js STAS/examples/sinus.bas
+
+# Version web (serveur local)
+node STAS/packages/stas-web/serve.js</code></pre>
+
+      <p>
+        La version web est accessible à l'adresse
+        <code>http://localhost:8080/packages/stas-web/index.html</code>. La racine du
+        serveur est le dossier <code>STAS/</code>, ce qui permet aux chemins relatifs et à
+        l'importmap de fonctionner sans bundler.
+      </p>
+
+      <div class="note">
+        <strong>Astuce :</strong> depuis la racine <code>STAS/</code>, le script
+        <code>npm run serve</code> lance également le serveur.
+      </div>
+    </section>
+
+    <section id="architecture">
+      <h2>Architecture</h2>
+      <p>
+        Le STOS original empilait ses traps maison (<code>FENETRE.S</code>,
+        <code>SPRITES.S</code>, <code>FLOAT.S</code>, <code>MUSIC.S</code>) au-dessus des
+        traps système GEMDOS, VDI, BIOS et XBIOS. STAS remplace toute cette pile par un
+        interpréteur JavaScript et un buffer de cellules.
+      </p>
+
+      <div class="diagram">
+        <strong>source.bas</strong> → tokenizer → <strong>stas-core</strong>
+        → <strong>ascii-buffer</strong> (cellules ch/fg/bg)
+        → <strong>stas-web</strong> ou <strong>stas-console</strong>
+        → renderer
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <h4>stas-core</h4>
+          <p>
+            Cœur du runtime : tokenisation, évaluation des expressions, boucles, gestion des
+            écrans <code>physic</code> et <code>logic</code> 320 × 200, convertisseur ASCII,
+            gestion des sprites et de la palette STOS 16 couleurs.
+          </p>
+        </div>
+        <div class="card">
+          <h4>stas-web</h4>
+          <p>
+            Adaptateur navigateur. Il relie l'interpréteur au DOM via un élément
+            <code>&lt;canvas&gt;</code>, gère le clavier et expose une API
+            <code>postMessage</code> pour l'intégration dans des iframes ou des
+            applications hôtes.
+          </p>
+        </div>
+        <div class="card">
+          <h4>stas-console</h4>
+          <p>
+            Adaptateur Node.js. Il affiche la sortie graphique sous forme d'art ASCII en
+            utilisant des couleurs ANSI 24 bits et les caractères de blocs quadrants,
+            permettant l'animation directement dans un terminal.
+          </p>
+        </div>
+        <div class="card">
+          <h4>stas-world</h4>
+          <p>
+            Pont AWI-HAXE / AOZ Studio. Il ajoute une couche de navigation entre mondes,
+            de shell hôte et le protocole WorldSTAS pour orchestrer plusieurs instances.
+          </p>
+        </div>
+      </div>
+
+      <h3>Comparaison avec le STOS original</h3>
+      <table>
+        <thead>
+          <tr><th>STOS (1988)</th><th>STAS</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>TRAP #3</code> → <code>FENETRE.S</code> → VDI → écran</td>
+            <td><code>AsciiBuffer</code> → renderer ANSI / canvas</td>
+          </tr>
+          <tr>
+            <td><code>TRAP #13</code> BIOS → <code>Bconin</code> (clavier)</td>
+            <td>Provider <code>readLine</code> / <code>inkey</code> injecté</td>
+          </tr>
+          <tr>
+            <td>Zone texte tokenisée en mémoire</td>
+            <td><code>Program</code> — lignes triées, tokens JS</td>
+          </tr>
+          <tr>
+            <td>Table <code>merreur</code> bilingue EN/FR</td>
+            <td><code>errors.js</code> — les 88 messages d'origine</td>
+          </tr>
+          <tr>
+            <td>Tables de tokens BASIC.S L525-694</td>
+            <td><code>tokens.js</code> — copie fidèle, codes $80-$FF</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="langue">
+      <h2>La langue V1</h2>
+      <p>
+        STAS V1 implante un sous-ensemble fidèle du langage STOS BASIC. Les tokens sont
+        reconnus de manière insensible à la casse, mais listés en minuscules. Les variables
+        restent sensibles à la casse, les noms sont complets et le suffixe <code>$</code>
+        désigne une chaîne.
+      </p>
+
+      <h3>Structures et flux</h3>
+      <p>
+        <code>GOTO</code>, <code>GOSUB</code>/<code>RETURN</code>/<code>POP</code>,
+        <code>FOR</code>/<code>TO</code>/<code>STEP</code>/<code>NEXT</code>,
+        <code>WHILE</code>/<code>WEND</code>, <code>REPEAT</code>/<code>UNTIL</code>,
+        <code>IF</code>/<code>THEN</code>/<code>ELSE</code> (forme une-ligne),
+        <code>ON n GOTO|GOSUB</code>, <code>DIM</code>, <code>DATA</code>/<code>READ</code>/<code>RESTORE [n]</code>,
+        <code>REM</code> / <code>'</code>, et <code>:</code> pour enchaîner les instructions.
+      </p>
+
+      <h3>Affichage</h3>
+      <p>
+        <code>PRINT</code> / <code>?</code> (le point-virgule supprime le saut de ligne, la
+        virgule crée des taquets de 14 colonnes, <code>TAB(n)</code> positionne),
+        <code>CLS</code>, <code>LOCATE x,y</code> (0-based), <code>PEN n</code>,
+        <code>PAPER n</code>, <code>HOME</code>, <code>CUP</code>/<code>CDOWN</code>/<code>CLEFT</code>/<code>CRIGHT</code>,
+        <code>INC</code>/<code>DEC</code>.
+      </p>
+
+      <h3>Entrées</h3>
+      <p>
+        <code>INPUT ["texte";] v[,v2...]</code>, <code>LINE INPUT</code>,
+        <code>INKEY$</code> (non bloquant).
+      </p>
+
+      <h3>Mathématiques et chaînes</h3>
+      <p>
+        <code>ABS INT SQR SGN SIN COS TAN ATN EXP LN LOG PI MIN MAX RND DEG RAD</code>
+        — <code>LOG</code> est en base 10 comme dans le STOS, et <code>DEG</code>/<code>RAD</code>
+        changent le mode des trigonométriques.
+      </p>
+      <p>
+        Chaînes : <code>CHR$ ASC LEN LEFT$ RIGHT$ MID$ STR$ VAL SPACE$ STRING$ INSTR
+        UPPER$ LOWER$ HEX$ BIN$</code>, plus <code>TIMER</code> (compteur 50 Hz),
+        <code>TRUE</code>/<code>FALSE</code>.
+      </p>
+
+      <h3>Commandes directes</h3>
+      <p>
+        <code>RUN [n]</code>, <code>LIST [n|n,m|n-m|n-|-m]</code>, <code>NEW</code>,
+        <code>SAVE ["fichier"]</code>, <code>SAVE AS ["fichier"]</code>,
+        <code>LOAD ["fichier"]</code>, <code>DEL</code>/<code>DELETE</code>,
+        <code>CLEAR</code>, <code>WAIT n</code>
+        (n × 20 ms), <code>END</code>, <code>STOP</code>, <code>ERROR n</code>,
+        <code>ENGLISH</code>/<code>FRANCAIS</code>.
+      </p>
+      <p>
+        SAVE / LOAD transitent par un connecteur (<code>stas:save</code>,
+        <code>stas:load</code>) au format des messages AWI — réponse
+        <code>Answer { success, error, data, message }</code> comme
+        <code>EdHttp</code>. La console branche un mockup local (fichiers sur
+        disque) ; plus tard, le <code>ConnectorStas</code> d'AWI prendra la main
+        (comptes, sécurité, stockage Volt.A). Sans nom de fichier, SAVE
+        réutilise le fichier courant — <code>SAVE AS</code> en demande un nouveau.
+        Le préfixe <code>examples:</code> désigne le dossier
+        <code>examples/</code> de l'installation, quel que soit le répertoire
+        courant : <code>LOAD "examples:hello.bas"</code>.
+      </p>
+
+      <div class="note note-alt">
+        <strong>Limites V1 :</strong> <code>IF ... THEN ... ELSE</code> reste sur une seule
+        ligne. Pas de <code>DEF FN</code>, pas de <code>ON ERROR GOTO</code>. Le dessin
+        connait <code>INK</code>, <code>RBOX</code>/<code>RBAR</code>, <code>CENTRE</code>,
+        <code>DRAW x,y TO x,y</code>, <code>RESERVE AS SCREEN</code> + <code>START(n)</code>,
+        l'affectation <code>LOGIC=</code>/<code>PHYSIC=</code>, et les réglages écran
+        <code>FLASH</code>/<code>KEY</code>/<code>CLICK</code>/<code>HIDE</code> (sans effet) ;
+        <code>PLAY</code> est accepté mais silencieux. Le reste du vocabulaire STOS (sprites,
+        musique, fenêtres, banques de données) est tokenisé fidèlement
+        mais renvoie l'erreur 20 « Function not implemented » — la table des tokens est
+        complète et le terrain est prêt pour les prochaines itérations.
+      </div>
+    </section>
+
+    <section id="renderers">
+      <h2>Les renderers</h2>
+      <p>
+        Un même programme STAS peut être affiché de plusieurs manières. Le choix du
+        renderer se fait par le paramètre d'URL <code>renderer</code> ou dans la section
+        <code>[web]</code> d'un fichier INI.
+      </p>
+
+      <div class="grid">
+        <div class="card">
+          <span class="badge">défaut</span>
+          <h4>CanvasRenderer</h4>
+          <p>
+            Le renderer historique. Chaque cellule de la grille texte est rendue comme un
+            bloc de couleur ou un glyphe. Équilibré entre lisibilité du texte et aspect
+            graphique. C'est le mode par défaut si aucun renderer n'est précisé.
+          </p>
+        </div>
+        <div class="card">
+          <span class="badge badge-alt">ascii-art</span>
+          <h4>AalibRenderer</h4>
+          <p>
+            Convertit le plan graphique 320 × 200 en art ASCII à l'aide d'une palette de
+            caractères. Donne un rendu rétro-terminal très marqué. Nécessite le fichier
+            <code>vendor/aalib.js</code>.
+          </p>
+        </div>
+        <div class="card">
+          <span class="badge badge-green">natif</span>
+          <h4>PixelRenderer (alias atari)</h4>
+          <p>
+            Copie le buffer graphique 320 × 200 pixel par pixel dans un canvas, avec une
+            mise à l'échelle sans lissage. Reproduit l'aspect le plus proche de l'affichage
+            original sur Atari ST.
+          </p>
+        </div>
+        <div class="card">
+          <span class="badge badge-purple">terminal</span>
+          <h4>Console ANSI</h4>
+          <p>
+            Utilisé par l'adaptateur Node.js. Le buffer graphique est converti en caractères
+            de blocs et en couleurs ANSI 24 bits, permettant une animation en ascii-art dans
+            un terminal moderne.
+          </p>
+        </div>
+      </div>
+
+      <h3>Transparence et faux-noir</h3>
+      <p>
+        Pour résoudre les problèmes de transparence, en particulier dans le renderer
+        AALib, STAS peut utiliser une couleur transparente. L'éditeur de sprites du STOS
+        original proposait une option similaire lors de l'importation d'images.
+      </p>
+      <p>
+        Le principe est simple : on choisit une couleur, par exemple le noir pur
+        <code>(0,0,0)</code>, comme couleur transparente. Le noir réel devient alors
+        <code>(0,0,1)</code>, imperceptible à l'œil humain mais distinct pour le moteur.
+        Ainsi, même les images avec palette conservent leurs couleurs originales (sauf le
+        noir qui devient <code>0,0,1</code>) et disposent en plus d'une couleur transparente.
+      </p>
+
+      <div class="note">
+        <strong>En résumé :</strong> le noir <code>(0,0,0)</code> joue le rôle de couleur
+        transparente, tandis que le noir affichable est cartographié vers
+        <code>(0,0,1)</code>. Cela aide le renderer ASCII-art à distinguer fond et sprite.
+      </div>
+    </section>
+
+    <section id="resolutions">
+      <h2>Résolutions texte et graphique</h2>
+      <p>
+        STAS distingue deux résolutions qui peuvent être identiques ou découplées : la
+        résolution du buffer texte et la résolution du renderer graphique.
+      </p>
+      <ul>
+        <li>
+          <strong>Buffer texte</strong> : la grille de caractères sur laquelle les commandes
+          <code>PRINT</code>, <code>LOCATE</code>, <code>CLS</code> opèrent.
+        </li>
+        <li>
+          <strong>Renderer graphique</strong> : la grille utilisée pour convertir l'image
+          320 × 200 en caractères ou en pixels affichables.
+        </li>
+      </ul>
+
+      <h3>Paramètres disponibles</h3>
+      <table>
+        <thead>
+          <tr><th>Paramètre</th><th>Exemple</th><th>Signification</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>res=WxH</code></td>
+            <td><code>res=160x50</code></td>
+            <td>Applique la même résolution au buffer texte et au renderer.</td>
+          </tr>
+          <tr>
+            <td><code>text=WxH</code></td>
+            <td><code>text=80x25</code></td>
+            <td>Verrouille la grille du buffer texte. <code>MODE</code> ne la redimensionne plus.</td>
+          </tr>
+          <tr>
+            <td><code>gfx=WxH</code></td>
+            <td><code>gfx=160x50</code></td>
+            <td>Définit la grille de conversion du renderer AALib, indépendamment du texte.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        Les valeurs doivent être des diviseurs de 320 × 200 pour éviter les blocs
+        fractionnaires. Les combinaisons courantes sont <code>80x25</code>,
+        <code>160x50</code>, <code>320x200</code>. Sans indication, la fidélité STOS est
+        totale : la commande <code>MODE</code> du programme choisit la grille.
+      </p>
+
+      <div class="note note-alt">
+        <strong>Compatibilité :</strong> le paramètre <code>gfx=</code> n'a de sens que
+        pour le renderer <code>aalib</code>, qui sait découpler la grille graphique de la
+        grille texte. Les renderers <code>canvas</code> et <code>pixel</code> suivent la
+        résolution texte ou la résolution native 320 × 200. Si une combinaison invalide est
+        demandée, un avertissement est émis dans la console du navigateur et le paramètre
+        est ignoré.
+      </div>
+    </section>
+
+    <section id="console">
+      <h2>Sortie console</h2>
+      <p>
+        La sortie console ne peut pas afficher de graphique bitmap, mais elle travaille en
+        ascii-art. Le buffer graphique 320 × 200 est converti en caractères de blocs
+        quadrants et colorisé avec des séquences ANSI 24 bits.
+      </p>
+      <p>
+        Cette approche permet de gérer des animations dans un terminal moderne. La démo
+        du sinus animé, par exemple, fonctionne parfaitement en console : chaque frame est
+        rasterisée en caractères et affichée à la cadence du programme.
+      </p>
+
+      <h3>Comportement au redimensionnement du terminal</h3>
+      <p>
+        Par défaut, la zone de render console n'est pas retaillée automatiquement lorsque la
+        fenêtre du terminal change de taille. Ce comportement peut être rendu optionnel via
+        un paramètre de configuration, afin de préserver la cohérence visuelle des
+        programmes qui supposent une taille d'écran fixe.
+      </p>
+
+      <h3>Exemple</h3>
+      <pre><code>node packages/stas-console/bin/stas.js examples/sinus-anim.bas</code></pre>
+    </section>
+
+    <section id="browser">
+      <h2>Fonctionnement dans le navigateur</h2>
+      <p>
+        Le serveur de développement inclus dans le package <code>stas-web</code> sert
+        l'ensemble du dossier <code>STAS/</code> comme racine et redirige <code>/</code> vers
+        <code>/packages/stas-web/</code>. Les chemins ne reprennent donc pas le segment
+        <code>/STAS/</code> dans l'URL.
+      </p>
+
+      <pre><code># Depuis la racine STOS/
+npm run serve
+# ou directement
+node STAS/packages/stas-web/serve.js</code></pre>
+
+      <p>Le serveur écoute par défaut sur <code>http://localhost:8080</code>.</p>
+
+      <h3>Paramètres d'URL</h3>
+      <table>
+        <thead>
+          <tr><th>Paramètre</th><th>Valeurs / exemple</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>run</code></td>
+            <td><code>examples/sinus-anim.bas</code></td>
+            <td>Chemin du programme à charger et exécuter au démarrage.</td>
+          </tr>
+          <tr>
+            <td><code>renderer</code></td>
+            <td><code>canvas</code>, <code>aalib</code>, <code>pixel</code>, <code>atari</code></td>
+            <td>Choix du renderer.</td>
+          </tr>
+          <tr>
+            <td><code>res</code></td>
+            <td><code>80x25</code>, <code>160x50</code></td>
+            <td>Résolution commune texte et graphique.</td>
+          </tr>
+          <tr>
+            <td><code>text</code></td>
+            <td><code>80x25</code></td>
+            <td>Résolution du buffer texte (verrouillée).</td>
+          </tr>
+          <tr>
+            <td><code>gfx</code></td>
+            <td><code>160x50</code></td>
+            <td>Résolution de conversion AALib.</td>
+          </tr>
+          <tr>
+            <td><code>config</code></td>
+            <td><code>stas.ini</code></td>
+            <td>Fichier INI à charger. Les paramètres d'URL restent prioritaires.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Points d'entrée importants</h3>
+      <ul>
+        <li>
+          <code>http://localhost:8080/docs.html</code> — cette documentation.
+        </li>
+        <li>
+          <code>http://localhost:8080/packages/stas-web/index.html</code> — application web
+          principale.
+        </li>
+        <li>
+          <code>http://localhost:8080/packages/stas-web/index.html?run=examples/sinus-anim.bas&renderer=pixel</code>
+          — lance une démo avec le renderer natif.
+        </li>
+      </ul>
+    </section>
+
+    <section id="config">
+      <h2>Configuration INI</h2>
+      <p>
+        Comme le nombre d'options augmente, un fichier INI simple permet de centraliser
+        les réglages. La section <code>[web]</code> accepte les clés <code>renderer</code>,
+        <code>res</code>, <code>text</code>, <code>gfx</code> et <code>run</code>.
+      </p>
+
+      <pre><code>; stas.ini
+[web]
+renderer=pixel
+res=80x25
+run=examples/sinus-anim.bas</code></pre>
+
+      <p>Chargement depuis l'URL :</p>
+      <pre><code>http://localhost:8080/packages/stas-web/index.html?config=stas.ini</code></pre>
+
+      <div class="note">
+        <strong>Priorité :</strong> les paramètres passés dans l'URL écrasent ceux du
+        fichier INI. Cela permet de surcharger rapidement un réglage sans modifier le
+        fichier de configuration.
+      </div>
+    </section>
+
+    <section id="iframe">
+      <h2>Intégration dans une iframe</h2>
+      <p>
+        L'application web peut être embarquée dans une balise <code>&lt;iframe&gt;</code> et
+        contrôlée depuis la page parente via une API <code>postMessage</code>. Cela permet
+        d'intégrer STAS dans un site, un éditeur de code, un wiki ou un autre framework.
+      </p>
+
+      <h3>Messages parent → iframe</h3>
+      <p>Tous les messages entrants doivent contenir <code>target: "stas"</code>.</p>
+      <table>
+        <thead>
+          <tr><th>Type</th><th>Données</th><th>Effet</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>run</code></td><td><code>source?</code>, <code>id?</code></td><td>Charge et exécute le programme.</td></tr>
+          <tr><td><code>load</code></td><td><code>source?</code>, <code>id?</code></td><td>Charge sans exécuter.</td></tr>
+          <tr><td><code>play</code></td><td><code>id?</code></td><td>(Re)lance ou reprend l'exécution.</td></tr>
+          <tr><td><code>pause</code></td><td><code>id?</code></td><td>Suspend l'exécution.</td></tr>
+          <tr><td><code>resume</code></td><td><code>id?</code></td><td>Reprend après une pause.</td></tr>
+          <tr><td><code>stop</code></td><td><code>id?</code></td><td>Interrompt l'exécution courante.</td></tr>
+          <tr><td><code>reset</code></td><td><code>id?</code></td><td>Stop et réinitialise complètement.</td></tr>
+          <tr><td><code>input</code></td><td><code>text</code>, <code>id?</code></td><td>Envoie une ligne en réponse à une saisie.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Messages iframe → parent</h3>
+      <p>Tous les messages sortants portent <code>source: "stas"</code>.</p>
+      <table>
+        <thead>
+          <tr><th>Type</th><th>Données</th><th>Sens</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>ready</code></td><td>—</td><td>Le moteur est prêt.</td></tr>
+          <tr><td><code>loaded</code></td><td><code>id?</code></td><td>Source chargée.</td></tr>
+          <tr><td><code>done</code></td><td><code>id?</code></td><td>Exécution terminée normalement.</td></tr>
+          <tr><td><code>stopped</code></td><td><code>id?</code></td><td>Arrêt demandé ou BREAK.</td></tr>
+          <tr><td><code>error</code></td><td><code>message</code>, <code>code</code></td><td>Erreur d'exécution.</td></tr>
+          <tr><td><code>input:request</code></td><td>—</td><td>L'engine attend une ligne de saisie.</td></tr>
+          <tr><td><code>output</code></td><td><code>text</code></td><td>Contenu texte final du buffer.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Exemple d'intégration</h3>
+      <pre><code>&lt;!-- Page hôte --&gt;
+&lt;iframe id="stasFrame"
+        src="http://localhost:8080/packages/stas-web/index.html"
+        allow="fullscreen"
+        sandbox="allow-scripts allow-same-origin"&gt;
+&lt;/iframe&gt;
+
+&lt;script&gt;
+  const iframe = document.getElementById('stasFrame');
+
+  function stasCommand(type, payload = {}) {
+    iframe.contentWindow.postMessage(
+      { target: 'stas', type, ...payload },
+      '*'
+    );
+  }
+
+  window.addEventListener('message', (e) =&gt; {
+    if (e.data?.source !== 'stas') return;
+    console.log('STAS:', e.data.type, e.data);
+  });
+
+  // Lancer un programme après quelques secondes
+  setTimeout(() =&gt; {
+    stasCommand('run', { source: '10 PRINT "HELLO"\n20 END' });
+  }, 2000);
+&lt;/script&gt;</code></pre>
+
+      <p>
+        Le champ <code>target: 'stas'</code> est obligatoire pour que l'iframe reconnaisse
+        le message. Les messages sortants portent <code>source: 'stas'</code>. Le champ
+        optionnel <code>id</code> permet de corréler les accusés de réception avec les
+        commandes envoyées.
+      </p>
+
+      <h3>Cas d'usage typiques</h3>
+      <ul>
+        <li>
+          <strong>Éditeur en ligne :</strong> un bouton « Run » dans une page envoie le
+          contenu d'un éditeur de texte vers l'iframe via <code>run</code>.
+        </li>
+        <li>
+          <strong>Documentation interactive :</strong> plusieurs iframes affichent des
+          exemples de programmes STOS sans quitter la page.
+        </li>
+        <li>
+          <strong>Intégration AWI-HAXE / AOZ Studio :</strong> un composant hôte enveloppe
+          les messages <code>postMessage</code> dans des méthodes
+          <code>play()</code>, <code>pause()</code>, <code>stop()</code>, etc.
+        </li>
+      </ul>
+    </section>
+
+    <section id="exemples">
+      <h2>Exemples d'URL et de programmes</h2>
+      <div class="example-box">
+        <code>http://localhost:8080/docs.html</code>
+        <p>Accès à cette documentation.</p>
+      </div>
+      <div class="example-box">
+        <code>http://localhost:8080/packages/stas-web/index.html?run=examples/sinus-anim.bas&renderer=pixel</code>
+        <p>Lance la démo vague avec le renderer pixel natif.</p>
+      </div>
+      <div class="example-box">
+        <code>http://localhost:8080/packages/stas-web/index.html?run=examples/sinus-anim.bas&renderer=aalib&res=160x50</code>
+        <p>Version ASCII-art haute résolution.</p>
+      </div>
+      <div class="example-box">
+        <code>http://localhost:8080/packages/stas-web/index.html?config=stas.ini</code>
+        <p>Charge la configuration depuis un fichier INI.</p>
+      </div>
+
+      <h3>Exemple de programme STOS</h3>
+      <pre><code>10 rem Sinus animé simple
+20 for x=0 to 319 step 4
+30   y=100+80*sin(x/40)
+40   plot x,y
+50 next x
+60 wait 50
+70 goto 20</code></pre>
+
+      <h3>Exemple de programme console</h3>
+      <pre><code>10 print "STAS fonctionne dans le terminal"
+20 for i=1 to 10
+30   print "tour ";i
+40   wait 10
+50 next i
+60 end</code></pre>
+
+      <div class="note">
+        <strong>À retenir :</strong> quelle que soit la cible (navigateur ou terminal), le
+        langage reste le même. Seul le renderer change, et le programme peut être déplacé
+        d'une plateforme à l'autre sans modification.
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>STAS — STOS ASCII System · Documentation interne · MIT</p>
+    </div>
+  </footer>
+</body>
+</html>

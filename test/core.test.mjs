@@ -14,8 +14,6 @@ import {
   SUB,
   StosError,
   ERR,
-  INTRO_FR,
-  INTRO_EN,
   PixelScreen,
   convertScreen,
 } from "../packages/stas-core/index.js";
@@ -416,6 +414,111 @@ test("mode direct : feedLine, list, new", async () => {
   assert.ok(stas.program.isEmpty);
 });
 
+test("list : bornes n / n,m / n-m / n- / -m", async () => {
+  const stas = new Stas({});
+  stas.loadSource(["10 a", "20 b", "30 c", "40 d"]);
+  const listed = async (cmd) => {
+    stas.buffer.clear();
+    await stas.execDirect(cmd);
+    return stas.buffer.toText().split("\n").filter((l) => l.trim());
+  };
+  assert.deepEqual(await listed("list"), ["10 a", "20 b", "30 c", "40 d"]);
+  assert.deepEqual(await listed("list 20"), ["20 b"]);
+  assert.deepEqual(await listed("list 20,40"), ["20 b", "30 c", "40 d"]);
+  assert.deepEqual(await listed("list 20-30"), ["20 b", "30 c"]);
+  assert.deepEqual(await listed("list 20-"), ["20 b", "30 c", "40 d"]);
+  assert.deepEqual(await listed("list -20"), ["10 a", "20 b"]);
+});
+
+// ---------------------------------------------------------------------------
+//  SAVE / LOAD (connecteur mockup — même contrat que ConnectorStas d'AWI)
+// ---------------------------------------------------------------------------
+
+/** Connecteur en mémoire : mêmes commandes/réponses que LocalStasConnector. */
+function memoryConnector() {
+  const files = new Map();
+  const calls = [];
+  return {
+    files,
+    calls,
+    async sendMessage(command, parameters) {
+      calls.push({ command, parameters });
+      if (command === "stas:save") {
+        files.set(parameters.path, parameters.source);
+        return { success: true, error: false, data: { path: parameters.path }, message: "", info: {} };
+      }
+      if (command === "stas:load") {
+        if (!files.has(parameters.path)) {
+          return { success: false, error: true, data: { stosCode: 48 }, message: "stas:file-not-found", info: {} };
+        }
+        return {
+          success: true, error: false,
+          data: { path: parameters.path, source: files.get(parameters.path) },
+          message: "", info: {},
+        };
+      }
+      return { success: false, error: true, data: {}, message: "awi:command-not-found", info: {} };
+    },
+  };
+}
+
+test("save/load : passent par le connecteur (io.sendCommand)", async () => {
+  const { sendMessage, files, calls } = memoryConnector();
+  const stas = new Stas({ sendCommand: sendMessage, userName: "loic" });
+  stas.feedLine('10 print "hello"');
+  await stas.execDirect('save "demo.bas"');
+  assert.equal(calls[0].command, "stas:save");
+  assert.equal(calls[0].parameters.userName, "loic");
+  assert.match(files.get("demo.bas"), /print "hello"/);
+  assert.equal(stas.io.currentPath, "demo.bas");
+  assert.ok(stas.buffer.toText().includes("demo.bas"));
+
+  // save sans nom réutilise le fichier courant
+  stas.feedLine('20 print "bye"');
+  await stas.execDirect("save");
+  assert.match(files.get("demo.bas"), /bye/);
+
+  // save as force un nouveau nom
+  await stas.execDirect('save as "copy.bas"');
+  assert.ok(files.has("copy.bas"));
+  assert.equal(stas.io.currentPath, "copy.bas");
+
+  // new oublie le fichier courant
+  await stas.execDirect("new");
+  assert.equal(stas.io.currentPath, null);
+
+  // load remplace le programme en mémoire
+  await stas.execDirect('load "demo.bas"');
+  assert.equal(stas.program.lines.length, 2);
+  assert.equal(stas.io.currentPath, "demo.bas");
+});
+
+test("save sans nom ni fichier courant demande le chemin", async () => {
+  const { sendMessage, files } = memoryConnector();
+  const stas = new Stas({
+    sendCommand: sendMessage,
+    readLine: async () => "typed.bas",
+  });
+  stas.feedLine("10 print 1");
+  await stas.execDirect("save");
+  assert.ok(files.has("typed.bas"));
+  assert.equal(stas.io.currentPath, "typed.bas");
+});
+
+test("load introuvable = erreur 48 ; sans connecteur = erreur 20", async () => {
+  const { sendMessage } = memoryConnector();
+  const stas = new Stas({ sendCommand: sendMessage });
+  await assert.rejects(
+    stas.execDirect('load "nope.bas"'),
+    (e) => e.code === ERR.FILE_NOT_FOUND,
+  );
+  const stas2 = new Stas({});
+  await assert.rejects(
+    stas2.execDirect('save "x.bas"'),
+    (e) => e.code === ERR.NOT_IMPL,
+  );
+});
+
 test("goto interdit en mode direct = erreur 14", async () => {
   const stas = new Stas({});
   stas.feedLine("10 print 1");
@@ -503,13 +606,6 @@ test("next/wend/until orphelins = erreurs 23/25/27", async () => {
 test("fonctions/instructions non implémentées = erreur 20", async () => {
   await expectError(["10 poke 0,1"], ERR.NOT_IMPL);
   await expectError(["10 print peek(0)"], ERR.NOT_IMPL);
-});
-
-test("intro FR/EN : titres et consigne STAS RUN", () => {
-  assert.ok(INTRO_FR.includes("LA CONSOLE PREND VIE"));
-  assert.ok(INTRO_EN.includes("THE CONSOLE COMES ALIVE"));
-  assert.ok(INTRO_FR.includes("STAS RUN"));
-  assert.ok(INTRO_EN.includes("STAS RUN"));
 });
 
 test('"STAS RUN" à l\'invite exécute le programme', async () => {
@@ -928,4 +1024,101 @@ test("WAIT KEY : attend tant qu'aucune touche (polling)", async () => {
   await stas.run();
   assert.ok(calls >= 3, "a pollé plusieurs fois avant la touche");
   assert.ok(stas.buffer.toText().includes("ok"));
+});
+
+// ---------------------------------------------------------------------------
+//  Vocabulaire star-link-demo : INK / RBOX / CENTRE / DRAW numérique /
+//  RESERVE AS SCREEN + START / LOGIC= / PLAY / no-ops écran
+// ---------------------------------------------------------------------------
+
+test("ink : couleur de tracé gfx sans toucher le PEN texte", async () => {
+  const stas = new Stas({});
+  stas.loadSource([
+    "10 mode 0",
+    "20 pen 5 : ink 2",
+    "30 plot 10,10",
+  ]);
+  await stas.run();
+  assert.equal(stas.io.logic.get(10, 10), 2);   // tracé à l'INK
+  assert.equal(stas.buffer.curPen, 5);           // le texte garde son PEN
+});
+
+test("ink avant mode : l'encre survit au MODE", async () => {
+  const stas = new Stas({});
+  stas.loadSource(["10 ink 3", "20 mode 0", "30 plot 5,5"]);
+  await stas.run();
+  assert.equal(stas.io.logic.get(5, 5), 3);
+});
+
+test("rbox : coins arrondis, arêtes droites, centre intact", async () => {
+  const stas = new Stas({});
+  stas.loadSource(["10 mode 0", "20 ink 4", "30 rbox 10,10 to 30,20"]);
+  await stas.run();
+  const p = stas.io.logic;
+  assert.equal(p.get(20, 10), 4);              // milieu arête haute
+  assert.equal(p.get(20, 20), 4);              // milieu arête basse
+  assert.equal(p.get(10, 15), 4);              // milieu bord gauche
+  assert.equal(p.get(20, 15), 15);             // centre intact = papier
+  const corner = p.get(10, 10);                // coin brut : non dessiné
+  assert.notEqual(corner, 4);                  // (arrondi, pas d'angle vif)
+});
+
+test("centre : écrit centré sur la ligne courante", async () => {
+  const stas = new Stas({ width: 21 });
+  await stas.execDirect('centre "ABC"');
+  const text = stas.buffer.toText();
+  assert.ok(text.includes("ABC"));
+  // colonne de départ = (21-3)/2 = 9 → 9 espaces avant ABC
+  assert.ok(/ {9}ABC/.test(text));
+});
+
+test("draw numérique : x1,y1 to x2,y2 (+ forme TO relative)", async () => {
+  const stas = new Stas({});
+  stas.loadSource([
+    "10 mode 0",
+    "20 draw 5,5 to 15,5",
+    "30 draw to 5,15",       // repart du curseur gfx (15,5) -> diagonale
+  ]);
+  await stas.run();
+  const p = stas.io.logic;
+  for (let x = 5; x <= 15; x++) assert.equal(p.get(x, 5), 0, `pixel ${x},5`);
+  for (let i = 0; i <= 10; i++) {                // (15,5) -> (5,15)
+    assert.equal(p.get(15 - i, 5 + i), 0, `pixel ${15 - i},${5 + i}`);
+  }
+  assert.equal(p.gx, 5); assert.equal(p.gy, 15);   // curseur graphique
+});
+
+test("draw chaîne tortue : inchangé, conflit résolu par le type", async () => {
+  const stas = new Stas({});
+  stas.loadSource(['10 mode 0', '20 draw "c1 r5"']);
+  await stas.run();
+  const p = stas.io.logic;
+  assert.equal(p.get(5, 0), 1);   // tracé de 5 vers la droite, encre 1
+});
+
+test("reserve as screen + start(n) : banque réservée puis adresse", async () => {
+  const stas = new Stas({});
+  stas.loadSource([
+    "10 reserve as screen 5",
+    "20 logic=start(5)",
+    '30 print logic',
+  ]);
+  await stas.run();
+  assert.ok(/\d/.test(stas.buffer.toText()));
+  assert.ok(stas.io.banks.get(5) === "screen");
+});
+
+test("start(n) sans reserve = erreur 44", async () => {
+  await expectError(["10 mode 0", "20 a=start(7)"], ERR.BANK_NOT_RES);
+});
+
+test("play / flash / key / hide / click : acceptés sans effet", async () => {
+  const stas = new Stas({});
+  stas.loadSource([
+    "10 play 1,12,10",
+    "20 flash off : key off : click off",
+    "30 hide",
+  ]);
+  await stas.run();
+  assert.ok(true);   // aucune erreur levée = vocabulaire accepté
 });

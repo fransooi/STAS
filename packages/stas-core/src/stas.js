@@ -32,9 +32,14 @@ export class Stas {
    *   rnd          : () => float [0,1)             — RND
    *   sleep        : async (ms) => void            — WAIT
    *   tick         : async (interp) => void        — respiration / rendu
-   *   scancode     : () => number                  — SCANCODE
+   *   scancode    : () => number                  — SCANCODE
    *   onSystem     : () => void                    — instruction SYSTEM
    *   flush        : () => void                    — forcer le rendu (prompt)
+   *   sendCommand  : async (command, params) => Answer — connecteur AWI
+   *                 (SAVE / LOAD ; voir awi.connectors.editor pour le contrat
+   *                  des messages — commande "stas:save", Answer { success... })
+   *   userName     : string                        — utilisateur courant (Volt.A)
+   *   currentPath  : string|null                   — fichier .bas ouvert (SAVE seul)
    */
   constructor(opts = {}) {
     this.buffer =
@@ -51,11 +56,16 @@ export class Stas {
       scancode: opts.scancode,
       onSystem: opts.onSystem,
       flush: opts.flush,
+      sendCommand: opts.sendCommand ?? null, // connecteur AWI (stas:save, stas:load...)
+      userName: opts.userName ?? null,
+      currentPath: null,      // fichier ouvert (SAVE sans nom le réutilise)
       physic: null,        // écran physique 320x200 (affiché, créé par MODE)
       logic: null,         // écran logique 320x200 (dessin courant)
       gfxActive: false,    // MODE actif ?
       lockTextRes: false,  // adaptateur web : grille texte verrouillée (?text=/?res=)
       autoback: true,      // AUTOBACK ON : trace vers logic + physic
+      ink: null,           // INK mémorisée (résiste à MODE, comme le STOS)
+      banks: new Map(),    // banques RESERVE AS ... (n -> type)
       asciiCache: null,    // cache du converter graphique -> ascii
       sprites: [],         // plan sprites (au-dessus de tout)
       spriteVersion: 0,
@@ -210,6 +220,7 @@ export class Stas {
   resetState() {
     this.interp.reset();
     this.program.clear();
+    this.io.currentPath = null;
     this.io.physic = null;
     this.io.logic = null;
     this.io.gfxActive = false;

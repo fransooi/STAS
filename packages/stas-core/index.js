@@ -10,4 +10,5 @@ export { T, SUB, FSUB, KEYWORDS, tokenText } from "./src/tokens.js";
 export { StosError, ERR } from "./src/errors.js";
 export { detokenize } from "./src/program.js";
 export { INT, FLOAT, STR, fmtNum, fmtValue } from "./src/values.js";
+export { parseIni, parseRes } from "./src/config.js";
 export { INTRO_FR, INTRO_EN, introText } from "./src/intro.js";
