@@ -91,6 +91,7 @@ echo                                    (web) renderer ; defaut via --web : pixe
 echo   --config=^<f.ini^>               INI config ([console] / [web])
 echo   --user=^<nom^>                   (web) user name
  echo   --mem=compatible^|native         memory model for screens (def. compatible)
+ echo   --borders=unicode^|st          window border chars (def. unicode)
 echo   Web resolutions (URL or INI [web]) : res=WxH  text=WxH  gfx=WxH
 echo   Console (INI [console])            : screen=WxH  resize=fixed^|follow
 echo.

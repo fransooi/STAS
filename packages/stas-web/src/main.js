@@ -65,6 +65,7 @@ const stas = new Stas({
   height: _textRes ? _textRes.rows : 25,
   langue,
   memMode: _opt("mem") === "native" ? "native" : "compatible",
+  borderMode: _opt("borders") === "st" ? "st" : "unicode",
 });
 if (_opt("mem") && _opt("mem") !== "compatible" && _opt("mem") !== "native") {
   console.warn(`[stas-web] mem=${_opt("mem")} ignoré (compatible ou native)`);

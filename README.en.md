@@ -253,6 +253,23 @@ or `mem=native`:
 Set with `--mem=` on the console, `?mem=` or `[web] mem=` in the browser,
 `[console] mem=` in an INI file.
 
+### Text windows
+
+`WINDOPEN n,x,y,tx,ty[,border][,charset]` creates a text window (border style
+1–15, default 1); `WINDOW n[,m…]` and `QWINDOW n` activate, `WINDEL n` deletes,
+`WINDMOVE x,y` moves, `BORDER n` redraws the border, `TITLE a$` centres a
+title on the top border, `CLW` clears the text area, `SCROLL UP|DOWN` scrolls
+it, and `WINDON` returns the active window number (0 = full screen).
+
+Text coordinates (`LOCATE`, `PRINT`, `CUP`…) are **relative to the active
+window's text area** — that is, inside the border.
+
+Borders come from the original `tbords` table (`FENETRE.S`), whose codes
+192–253 are the STOS font glyphs decoded from `8X8.CR0`. `borders=unicode`
+(default) draws them as Unicode box characters; `borders=st` stores the real
+codes (translated for display). Set with `--borders=`, `?borders=` or the INI
+sections.
+
 ### Semantic decisions (V1)
 
 - `TRUE` is **1**, comparisons return 0/1

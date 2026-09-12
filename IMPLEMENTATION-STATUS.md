@@ -22,16 +22,16 @@ raises STOS error **20** (`Function not implemented`), per
 | Category | Count |
 | --- | ---: |
 | Distinct tokenized keyword forms | **341** |
-| Implemented (handler present) | **169** |
-| Tokenized, **not** implemented → error 20 | **172** |
+| Implemented (handler present) | **183** |
+| Tokenized, **not** implemented → error 20 | **158** |
 | Manual entries **not tokenized at all** | **2** |
 
-Of the 169 "implemented" forms, 7 are pure structural markers (`TO`, `STEP`,
-`THEN`, `NEXT`, `WEND`, `UNTIL`, `ELSE`), leaving **≈ 162 distinct STOS
+Of the 183 "implemented" forms, 7 are pure structural markers (`TO`, `STEP`,
+`THEN`, `NEXT`, `WEND`, `UNTIL`, `ELSE`), leaving **≈ 176 distinct STOS
 features that actually run today**.
 
-> Iterations 1–3 landed: the count moved from 124 → **169** implemented
-> (217 → 172 missing).
+> Iterations 1–4 landed: the count moved from 124 → **183** implemented
+> (217 → 158 missing).
 
 **The token table is *almost* complete:** only **`PACK`** and **`UNPACK`**
 (screen pack/unpack) from the reference card have no token. Everything else is
@@ -40,7 +40,7 @@ tables, not the tokenizer.
 
 ---
 
-## 2. Implemented today (169 forms)
+## 2. Implemented today (183 forms)
 
 **Control flow & structures**
 `GOTO`, `GOSUB`, `RETURN`, `POP`, `FOR…TO…STEP…NEXT`, `WHILE…WEND`,
@@ -74,6 +74,13 @@ printed precision of reals.
 from BASIC.S), `FREE`,
 `TIME$`, `DATE$` (readable and assignable), `LANGUAGE`.
 
+**Text windows**
+`WINDOPEN n,x,y,tx,ty[,border][,charset]`, `WINDOW`, `QWINDOW`, `WINDMOV`,
+`WINDEL`, `WINDON`, `TITLE`, `BORDER`, `CLW`, `SCROLL UP|DOWN|ON|OFF`.
+Text coordinates are relative to the active window; borders come from the
+original `tbords` table (`borders=unicode|st`). `XCURS`/`YCURS` report the
+relative cursor.
+
 **Error handling**
 `ON ERROR GOTO line` (`0` disables), `RESUME`, `RESUME NEXT`, `RESUME n`,
 `ERRN`, `ERRL` (real values), `BREAK ON|OFF`.
@@ -99,7 +106,7 @@ HEX$ BIN$`.
 
 ---
 
-## 3. Remaining work (172 tokenized forms → error 20)
+## 3. Remaining work (158 tokenized forms → error 20)
 
 Grouped by subsystem, not by token table, so it maps to actual work items.
 
@@ -134,9 +141,13 @@ Still open: `CURRENT` (not in the reference card), and the graphics
 - `SQUARE w,h,x,y,border`
 
 ### 3.5 Windows
-- `WINDOPEN`, `WINDOW`, `QWINDOW`, `WINDEL`, `WINDMOV`, `WINDON`
-- `TITLE`, `BORDER`, `CLW`
-- `SCROLL DOWN`, `SCROLL UP`, `SCROLL ON|OFF`, scroll zones
+✅ **Done (iteration 4).** `WINDOPEN`, `WINDOW`, `QWINDOW`, `WINDMOV`,
+`WINDEL`, `WINDON`, `TITLE`, `BORDER`, `CLW`, `SCROLL UP|DOWN|ON|OFF`, with
+text coordinates **relative to the active window** and the original border
+table (`FENETRE.S` `tbords`, codes 192-253, `borders=unicode|st`).
+Still open: named scroll zones (`SCROLL x1,y1 TO x2,y2`), per-window cursor
+styles (`SET CURS`, `CURS`), `INVERSE`/`SHADE`/`UNDER`/`WRITING`, `SQUARE`,
+`SCRN`, the `*TEXT`/`*GRAPHIC` conversions (see §3.4).
 
 ### 3.6 Graphics V2
 - Primitives: `ARC`, `EARC`, `EPIE`, `PIE`, `POLYGON`, `POLYLINE`, `POLYMARK`
@@ -262,7 +273,8 @@ Ranked by value ÷ effort, assuming the console/canvas target:
 4. **Graphics V2 primitives & styles** — `ARC`/`EARC`/`EPIE`/`PIE`,
    `POLYGON`/`POLYLINE`/`POLYMARK`, `POINT`, `CLIP`, `SET LINE`/`MARK`/
    `PATTERN`, `DIVX`/`DIVY`, colour/palette commands.
-5. **Windows + scroll zones** — the last big block of text-side behaviour.
+5. ✅ **Done (iteration 4)** — text windows (borders, relative coordinates,
+   activation).
 6. **Sprite runtime** — wire `stas-sprites` to `SPRITE`/`MOVE`/`ANIM`/
    `PUT`/`GET`/`ZONE`/`COLLIDE`.
 7. **Sound** — a host audio connector (console + browser) for

@@ -47,7 +47,21 @@ export class AsciiBuffer {
     this.curPaper = 15;          // papier courant (PAPER)
     this.cursorVisible = true;
     this.version = 0;            // incrementé à chaque modification (dirty tracking)
+    this.view = null;            // fenêtre active {x,y,w,h} ou null = plein écran
+    this.translate = null;       // traduction d'affichage (mode borders=st)
     this.clear();
+  }
+
+  get viewX() { return this.view ? this.view.x : 0; }
+  get viewY() { return this.view ? this.view.y : 0; }
+  get viewW() { return this.view ? this.view.w : this.width; }
+  get viewH() { return this.view ? this.view.h : this.height; }
+
+  /** Active une fenêtre (coordonnées du curseur RELATIVES à la vue). */
+  setView(v) {
+    this.view = v;
+    this.cx = 0;
+    this.cy = 0;
   }
 
   /** Efface tout avec le papier courant — équivalent CLS */
@@ -88,6 +102,7 @@ export class AsciiBuffer {
    * @param {number} [bg] papier (défaut: papier courant)
    */
   write(text, fg = this.curPen, bg = this.curPaper) {
+    const vx = this.viewX, vy = this.viewY, vw = this.viewW;
     for (let i = 0; i < text.length; i++) {
       const ch = text[i];
       if (ch === "\n") {
@@ -96,41 +111,64 @@ export class AsciiBuffer {
         this.cx = 0;
       } else if (ch === "\t") {
         // TAB STOS: colonnes multiples de 14 (comme le PRINT , )
-        this.cx = Math.min(this.width - 1, (Math.floor(this.cx / 14) + 1) * 14);
+        this.cx = Math.min(vw - 1, (Math.floor(this.cx / 14) + 1) * 14);
       } else {
-        this.put(this.cx, this.cy, ch, fg, bg);
+        this.put(vx + this.cx, vy + this.cy, ch, fg, bg);
         this.cx++;
-        if (this.cx >= this.width) this.newLine();
+        if (this.cx >= vw) this.newLine();
       }
     }
   }
 
-  /** Retour chariot + scroll si nécessaire */
+  /** Retour chariot + scroll (dans la vue active) si nécessaire */
   newLine() {
+    const vh = this.viewH;
     this.cx = 0;
     this.cy++;
-    if (this.cy >= this.height) {
-      this.scrollUp();
-      this.cy = this.height - 1;
+    if (this.cy >= vh) {
+      this.scrollView(1);
+      this.cy = vh - 1;
     }
   }
 
-  /** Scroll tout l'écran d'une ligne vers le haut */
-  scrollUp() {
-    const w = this.width;
-    this.cells.copyWithin(0, w);
-    for (let x = 0; x < w; x++) {
-      this.cells[this.idx(x, this.height - 1)] = {
-        ch: " ", fg: this.curPen, bg: this.curPaper,
-      };
+  /**
+   * Scroll d'une zone rectangulaire (défaut : la vue active, sinon tout
+   * l'écran). dir > 0 = vers le haut, dir < 0 = vers le bas.
+   */
+  scrollView(dir, rect = null) {
+    const r = rect ?? (this.view ?? { x: 0, y: 0, w: this.width, h: this.height });
+    const { x, y, w, h } = r;
+    if (dir >= 0) {
+      for (let j = 0; j < h - 1; j++) {
+        for (let i = 0; i < w; i++) {
+          this.cells[this.idx(x + i, y + j)] = this.cells[this.idx(x + i, y + j + 1)];
+        }
+      }
+      for (let i = 0; i < w; i++) {
+        this.cells[this.idx(x + i, y + h - 1)] = { ch: " ", fg: this.curPen, bg: this.curPaper };
+      }
+    } else {
+      for (let j = h - 1; j > 0; j--) {
+        for (let i = 0; i < w; i++) {
+          this.cells[this.idx(x + i, y + j)] = this.cells[this.idx(x + i, y + j - 1)];
+        }
+      }
+      for (let i = 0; i < w; i++) {
+        this.cells[this.idx(x + i, y)] = { ch: " ", fg: this.curPen, bg: this.curPaper };
+      }
     }
     this.version++;
   }
 
-  /** LOCATE x,y (coordonnées 0-based, comme STOS) */
+  /** Scroll tout l'écran d'une ligne vers le haut */
+  scrollUp() {
+    this.scrollView(1, { x: 0, y: 0, w: this.width, h: this.height });
+  }
+
+  /** LOCATE x,y (0-based, RELATIF à la fenêtre active) */
   locate(x, y) {
-    this.cx = Math.max(0, Math.min(this.width - 1, x | 0));
-    this.cy = Math.max(0, Math.min(this.height - 1, y | 0));
+    this.cx = Math.max(0, Math.min(this.viewW - 1, x | 0));
+    this.cy = Math.max(0, Math.min(this.viewH - 1, y | 0));
   }
 
   /** Curseur haut/bas/gauche/droite — CUP/CDOWN/CLEFT/CRIGHT */
@@ -138,10 +176,10 @@ export class AsciiBuffer {
     this.locate(this.cx + dx, this.cy + dy);
   }
 
-  /** Efface la ligne courante */
+  /** Efface la ligne courante (dans la vue active) */
   clearLine(y = this.cy) {
-    for (let x = 0; x < this.width; x++) {
-      this.put(x, y, " ", this.curPen, this.curPaper);
+    for (let x = 0; x < this.viewW; x++) {
+      this.put(this.viewX + x, this.viewY + y, " ", this.curPen, this.curPaper);
     }
   }
 
@@ -154,7 +192,8 @@ export class AsciiBuffer {
     for (let y = 0; y < this.height; y++) {
       let line = "";
       for (let x = 0; x < this.width; x++) {
-        line += this.cells[this.idx(x, y)].ch;
+        const c = this.cells[this.idx(x, y)];
+        line += this.translate ? this.translate(c.ch) : c.ch;
       }
       out += line.replace(/\s+$/, "") + "\n";
     }
@@ -192,7 +231,7 @@ export function makeEcho(buffer) {
     write: (s) => buffer.write(s),
     backspace: () => {
       if (buffer.cx > 0) {
-        buffer.put(buffer.cx - 1, buffer.cy, " ");
+        buffer.put(buffer.viewX + buffer.cx - 1, buffer.viewY + buffer.cy, " ");
         buffer.cx--;
         buffer.version++;
       }

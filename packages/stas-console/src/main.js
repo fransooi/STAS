@@ -20,6 +20,9 @@
  *    mem=compatible  modèle mémoire des écrans : "compatible" (format Atari
  *                    ST, plans entrelacés, défaut) ou "native" (1 octet/pixel).
  *                    Aussi disponible en ligne de commande : --mem=…
+ *    borders=unicode bordures de fenêtre : "unicode" (défaut) ou "st" (codes
+ *                    réels de la police STOS 192-253, traduits à l'affichage).
+ *                    Aussi en ligne de commande : --borders=…
  *
  *  Sans --config= : un fichier <même-nom>.ini à côté du .bas est chargé
  *  automatiquement s'il existe (config par démo, comme ?config= côté web).
@@ -60,6 +63,7 @@ function parseArgv(argv) {
   let config = null;
   let user = null;
   let mem = null;
+  let borders = null;
   let skipNext = false;
 
   for (let i = 0; i < argv.length; i++) {
@@ -111,6 +115,15 @@ function parseArgv(argv) {
       mem = a.slice("--mem=".length);
       continue;
     }
+    if (a === "--borders") {
+      borders = argv[i + 1] ?? null;
+      if (borders) { skipNext = true; }
+      continue;
+    }
+    if (a.startsWith("--borders=")) {
+      borders = a.slice("--borders=".length);
+      continue;
+    }
     if (a.startsWith("--")) {
       console.error(`[stas] option inconnue : ${a}`);
       continue;
@@ -124,7 +137,7 @@ function parseArgv(argv) {
     file = null;
   }
 
-  return { file, editFile, config, user, mem };
+  return { file, editFile, config, user, mem, borders };
 }
 
 /** Charge l'INI : --config= sinon <même-nom>.ini à côté du .bas. */
@@ -146,7 +159,8 @@ function loadConfig(configPath, basFile) {
 }
 
 export async function main(argv) {
-  const { file, editFile, config, user: cliUser, mem: cliMem } = parseArgv(argv);
+  const { file, editFile, config, user: cliUser, mem: cliMem,
+    borders: cliBorders } = parseArgv(argv);
   const basFile = file || editFile;
   const cfg = loadConfig(config, basFile);
   const user = cliUser || cfg.user || "user";
@@ -158,6 +172,13 @@ export async function main(argv) {
     console.warn(`[stas] mem=${memRaw} ignore (compatible ou native)`);
   }
   const memMode = memRaw === "native" ? "native" : "compatible";
+
+  // Bordures de fenêtre : "unicode" (défaut) ou "st" (codes réels 192-253).
+  const bordersRaw = cliBorders || cfg.borders || "unicode";
+  if (bordersRaw !== "unicode" && bordersRaw !== "st") {
+    console.warn(`[stas] borders=${bordersRaw} ignore (unicode ou st)`);
+  }
+  const borderMode = bordersRaw === "st" ? "st" : "unicode";
 
   // --- zone de rendu : screen= (fixe) sinon taille du terminal ----------
   let width = fitCols();
@@ -190,7 +211,7 @@ export async function main(argv) {
   }
 
   const langue = machineLangue();
-  const stas = new Stas({ width, height, langue, memMode });
+  const stas = new Stas({ width, height, langue, memMode, borderMode });
   if (fixed) stas.io.lockTextRes = true; // zone fixe : MODE ne la defait pas
 
   // Connecteur stockage — mockup local du ConnectorStas d'AWI (phase 3).

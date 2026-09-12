@@ -1494,3 +1494,82 @@ test("accessoires : ACCLOAD/ACCNEW/ACCNB acceptés", async () => {
     "30 print accnb",
   ]), ["0"]);
 });
+
+// ---------------------------------------------------------------------------
+//  Fenêtres texte (FENETRE.S)
+// ---------------------------------------------------------------------------
+
+test("fenêtres : WINDOPEN, bordure et coordonnées relatives", async () => {
+  const stas = new Stas({});
+  stas.loadSource([
+    "10 windopen 1,10,5,10,5,1",
+    '20 locate 0,0:print "A"',
+    '30 locate 1,1:print "B"',
+  ]);
+  await stas.run();
+  assert.equal(stas.buffer.get(10, 5).ch, "┌");
+  assert.equal(stas.buffer.get(19, 5).ch, "┐");
+  assert.equal(stas.buffer.get(10, 9).ch, "└");
+  assert.equal(stas.buffer.get(19, 9).ch, "┘");
+  assert.equal(stas.buffer.get(11, 5).ch, "─");
+  assert.equal(stas.buffer.get(11, 6).ch, "A"); // zone texte relative
+  assert.equal(stas.buffer.get(12, 7).ch, "B");
+});
+
+test("fenêtres : WINDON suit la fenêtre active", async () => {
+  const stas = new Stas({});
+  stas.loadSource([
+    "10 windopen 2,0,0,20,10,1",
+    "20 print windon",
+    "30 windopen 3,30,0,20,10,1",
+    "40 print windon",
+  ]);
+  await stas.run();
+  assert.equal(stas.buffer.get(1, 1).ch, "2");
+  assert.equal(stas.buffer.get(31, 1).ch, "3");
+  assert.deepEqual([...stas.io.windows.byNum.keys()], [2, 3]);
+});
+
+test("fenêtres : WINDEL détruit la fenêtre", async () => {
+  const stas = new Stas({});
+  stas.loadSource(["10 windopen 2,0,0,20,10,1", "20 windel 2"]);
+  await stas.run();
+  assert.equal(stas.io.windows.byNum.size, 0);
+});
+
+test("fenêtres : CLW efface la zone texte, garde la bordure", async () => {
+  const stas = new Stas({});
+  stas.loadSource([
+    "10 windopen 1,5,5,12,6,1",
+    '20 print "HELLO"',
+    "30 clw",
+  ]);
+  await stas.run();
+  assert.equal(stas.buffer.get(6, 6).ch, " ");
+  assert.equal(stas.buffer.get(5, 5).ch, "┌");
+});
+
+test("fenêtres : TITLE centré sur la bordure haute", async () => {
+  const stas = new Stas({});
+  stas.loadSource(['10 windopen 1,0,0,11,5,1', '20 title "HI"']);
+  await stas.run();
+  assert.equal(stas.buffer.get(4, 0).ch, "H");
+  assert.equal(stas.buffer.get(5, 0).ch, "I");
+});
+
+test("fenêtres : borders=st stocke les codes réels, affiche l'Unicode", async () => {
+  const stas = new Stas({ borderMode: "st" });
+  stas.loadSource(["10 windopen 1,0,0,10,5,1"]);
+  await stas.run();
+  assert.equal(stas.buffer.get(0, 0).ch, String.fromCharCode(192));
+  assert.equal(stas.buffer.get(9, 4).ch, String.fromCharCode(199));
+  assert.ok(stas.buffer.toText().startsWith("┌"));
+});
+
+test("fenêtres : erreurs 69 / 70 / 71 / 76", async () => {
+  await expectError(
+    ["10 windopen 1,0,0,10,5,1", "20 windopen 1,0,0,10,5,1"], ERR.WIND_OPEN);
+  await expectError(["10 windel 3"], ERR.WIND_NOT_OPEN);
+  await expectError(["10 windopen 0,0,0,10,5,1"], ERR.SYS_WIND);
+  await expectError(["10 windopen 1,0,0,1,1,1"], ERR.WIND_SMALL);
+});

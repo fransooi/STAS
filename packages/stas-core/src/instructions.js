@@ -242,8 +242,72 @@ function doInk(it) {
 function doCentre(it) {
   const s = it.toStr(it.evalExpr());
   const b = it.buffer;
-  b.locate(Math.max(0, (b.width - s.length) >> 1), b.cy);
+  b.locate(Math.max(0, (b.viewW - s.length) >> 1), b.cy);
   b.write(s + "\n");
+}
+
+// --- fenêtres texte (port de FENETRE.S) -----------------------------------
+
+/** WINDOPEN n,x,y,tx,ty[,bordure][,jeu] */
+function doWindOpen(it) {
+  const n = it.toInt(it.evalExpr());
+  it.expectRaw(",");
+  const x = it.toInt(it.evalExpr());
+  it.expectRaw(",");
+  const y = it.toInt(it.evalExpr());
+  it.expectRaw(",");
+  const w = it.toInt(it.evalExpr());
+  it.expectRaw(",");
+  const h = it.toInt(it.evalExpr());
+  let border = 1;
+  let charset = null;
+  if (it.eatRaw(",")) {
+    border = it.toInt(it.evalExpr());
+    if (it.eatRaw(",")) charset = it.toInt(it.evalExpr());
+  }
+  it.io.windows.open(n, x, y, w, h, border, charset, it);
+}
+
+/** WINDOW n[,m…] — active une ou plusieurs fenêtres. */
+function doWindow(it) {
+  const list = [it.toInt(it.evalExpr())];
+  while (it.eatRaw(",")) list.push(it.toInt(it.evalExpr()));
+  for (const n of list) it.io.windows.activate(n, it);
+}
+
+/** QWINDOW n — activation rapide. */
+function doQWindow(it) {
+  it.io.windows.activate(it.toInt(it.evalExpr()), it);
+}
+
+/** WINDMOVE x,y — déplace la fenêtre active. */
+function doWindMov(it) {
+  const x = it.toInt(it.evalExpr());
+  it.expectRaw(",");
+  const y = it.toInt(it.evalExpr());
+  it.io.windows.move(x, y, it);
+}
+
+/** WINDEL n — détruit une fenêtre. */
+function doWindEl(it) {
+  it.io.windows.del(it.toInt(it.evalExpr()), it);
+}
+
+/** TITLE a$ — titre centré sur la bordure haute. */
+function doTitle(it) {
+  it.io.windows.title(it.toStr(it.evalExpr()), it);
+}
+
+/** BORDER n — redessine la bordure (style inchangé si n = 0). */
+function doBorder(it) {
+  let style = 0;
+  if (!it.atEos()) style = it.toInt(it.evalExpr());
+  it.io.windows.setBorder(style, it);
+}
+
+/** CLW — efface la fenêtre active. */
+function doClw(it) {
+  it.io.windows.clearActive(it);
 }
 
 /** PLAY canal,hauteur,volume[,...] — sons : M4 (silencieux en ASCII). */
@@ -1146,6 +1210,17 @@ export const EXT_INSTRUCTIONS = new Map([
   [SUB.FIX, doFix],
   [SUB.SORT, doSort],
   [SUB.USING, (it) => printUsing(it)],
+  [SUB.WINDOPEN, doWindOpen],
+  [SUB.WINDOW, doWindow],
+  [SUB.QWINDOW, doQWindow],
+  [SUB.WINDMOV, doWindMov],
+  [SUB.WINDEL, doWindEl],
+  [SUB.TITLE, doTitle],
+  [SUB.BORDER, doBorder],
+  [SUB.CLW, doClw],
+  [SUB.SCROLLDN, (it) => it.io.windows.scroll(1, it)],
+  [SUB.SCROLLUP, (it) => it.io.windows.scroll(-1, it)],
+  [SUB.SCROLL, (it) => { it.eat(T.ON) || it.eat(T.OFF); }],
   [SUB.COPY, doCopy],
   [SUB.FILL, doFill],
   [SUB.ERASE, doErase],
@@ -1395,4 +1470,7 @@ export const EXTFUNC_TABLE = new Map([
   [FSUB.ERRL, (it) => INT(it.errl)],
   [FSUB.VARPTR, funcVarptr],
   [FSUB.ACCNB, () => INT(0)],
+  [FSUB.WINDON, (it) => INT(it.io.windows.current())],
+  [FSUB.XCURS, (it) => INT(it.buffer.cx)],
+  [FSUB.YCURS, (it) => INT(it.buffer.cy)],
 ]);

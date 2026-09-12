@@ -259,6 +259,24 @@ La mémoire écran a deux représentations, choisies par `mem=compatible`
 Réglable par `--mem=` en console, `?mem=` ou `[web] mem=` dans le
 navigateur, `[console] mem=` dans un fichier INI.
 
+### Fenêtres texte
+
+`WINDOPEN n,x,y,tx,ty[,bordure][,jeu]` crée une fenêtre texte (bordure 1–15,
+défaut 1) ; `WINDOW n[,m…]` et `QWINDOW n` l'activent, `WINDEL n` la détruit,
+`WINDMOVE x,y` la déplace, `BORDER n` redessine la bordure, `TITLE a$` centre
+un titre sur la bordure haute, `CLW` efface la zone texte, `SCROLL UP|DOWN`
+la fait défiler, et `WINDON` renvoie le numéro de la fenêtre active (0 = plein
+écran).
+
+Les coordonnées texte (`LOCATE`, `PRINT`, `CUP`…) sont **relatives à la zone
+texte de la fenêtre active** — donc à l'intérieur de la bordure.
+
+Les bordures viennent de la table d'origine `tbords` (`FENETRE.S`), dont les
+codes 192–253 sont les glyphes de la police STOS décodés depuis `8X8.CR0`.
+`borders=unicode` (défaut) les dessine en caractères Unicode ; `borders=st`
+stocke les codes réels (traduits à l'affichage). Réglable par `--borders=`,
+`?borders=` ou les sections INI.
+
 ### Décisions sémantiques (V1)
 
 - `TRUE` vaut **1**, comparaisons rendent 0/1

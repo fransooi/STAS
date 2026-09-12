@@ -16,6 +16,7 @@
 import { AsciiBuffer, STOS_PALETTE } from "./ascii-buffer.js";
 import { PixelScreen } from "./pixel-screen.js";
 import { Memory } from "./memory.js";
+import { WindowManager, borderCodeToGlyph } from "./windows.js";
 import { convertScreen } from "./ascii-converter.js";
 import { Program } from "./program.js";
 import { Interpreter } from "./interpreter.js";
@@ -52,6 +53,10 @@ export class Stas {
       // plans entrelacés, défaut) ou "native" (un octet par pixel).
       memMode: opts.memMode ?? "compatible",
       mem: null,               // Memory — créé juste après (a besoin de io)
+      // Bordures de fenêtre : "unicode" (défaut, glyphes Unicode) ou "st"
+      // (codes réels 192-253 de la police STOS, traduits à l'affichage).
+      borderMode: opts.borderMode ?? "unicode",
+      windows: null,           // WindowManager — créé juste après
       readLine: opts.readLine,
       inkey: opts.inkey,
       now: opts.now,
@@ -76,6 +81,14 @@ export class Stas {
       spriteVersion: 0,
     };
     this.io.mem = new Memory(this.io);
+    this.io.windows = new WindowManager(this.io);
+    this.io.windows.mode = this.io.borderMode;
+    if (this.io.borderMode === "st") {
+      this.buffer.translate = (ch) => {
+        const c = ch.charCodeAt(0);
+        return c >= 192 && c <= 253 ? borderCodeToGlyph(c) : ch;
+      };
+    }
     this.interp = new Interpreter(this.program, this.io);
     if (opts.langue) this.interp.langue = opts.langue;
   }
@@ -233,6 +246,9 @@ export class Stas {
     this.io.autoback = true;
     this.io.asciiCache = null;
     this.io.spriteVersion = 0;
+    this.io.windows = new WindowManager(this.io);
+    this.io.windows.mode = this.io.borderMode;
+    this.buffer.setView(null);
     const b = this.buffer;
     b.curPen = 0;
     b.curPaper = 15;
