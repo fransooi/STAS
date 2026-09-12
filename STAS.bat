@@ -79,10 +79,19 @@ echo   STAS run ^<file.bas^|examples:name^>
 echo                                   Run explicitly
 echo   STAS --edit ^<file.bas^>          Edit in the console
 echo   STAS --web --edit ^<file.bas^>   Edit in the browser
+echo   STAS --web --run ^<file.bas^>    Run in the browser
 echo   STAS --web                        Start the web server and open the browser
 echo   STAS serve                        Start the web server (no browser)
 echo   STAS test                         Run the tests
 echo   STAS help                         Show this help
+echo.
+echo Options:
+echo   --renderer=aalib^|pixel^|atari^|canvas
+echo                                    (web) renderer ; defaut via --web : pixel
+echo   --config=^<f.ini^>               INI config ([console] / [web])
+echo   --user=^<nom^>                   (web) user name
+echo   Web resolutions (URL or INI [web]) : res=WxH  text=WxH  gfx=WxH
+echo   Console (INI [console])            : screen=WxH  resize=fixed^|follow
 echo.
 echo Examples:
 echo   STAS examples:hello.bas

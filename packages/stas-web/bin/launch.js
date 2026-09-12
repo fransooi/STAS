@@ -24,7 +24,10 @@ const ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
 
 function parseArgs(argv) {
-  const out = { verb: null, file: null, edit: null, user: null, config: null };
+  const out = {
+    verb: null, file: null, edit: null, run: null,
+    renderer: null, user: null, config: null,
+  };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--web") continue;
@@ -33,13 +36,22 @@ function parseArgs(argv) {
       out.verb = a;
       continue;
     }
-    if (a === "--edit" || a === "--run") {
+    if (a === "--edit") {
       out.edit = argv[i + 1] ?? null;
       if (out.edit) i++;
       continue;
     }
-    if (a.startsWith("--edit=") || a.startsWith("--run=")) {
+    if (a === "--run") {
+      out.run = argv[i + 1] ?? null;
+      if (out.run) i++;
+      continue;
+    }
+    if (a.startsWith("--edit=")) {
       out.edit = a.slice(a.indexOf("=") + 1);
+      continue;
+    }
+    if (a.startsWith("--run=")) {
+      out.run = a.slice(a.indexOf("=") + 1);
       continue;
     }
     if (a === "--user") {
@@ -60,8 +72,17 @@ function parseArgs(argv) {
       out.config = a.slice(a.indexOf("=") + 1);
       continue;
     }
+    if (a === "--renderer") {
+      out.renderer = argv[i + 1] ?? null;
+      if (out.renderer) i++;
+      continue;
+    }
+    if (a.startsWith("--renderer=")) {
+      out.renderer = a.slice(a.indexOf("=") + 1);
+      continue;
+    }
     // Argument positionnel = le fichier (run= ou edit= selon le contexte)
-    if (!out.file && !out.edit && !a.startsWith("--")) {
+    if (!out.file && !out.edit && !out.run && !a.startsWith("--")) {
       out.file = a;
     }
   }
@@ -138,69 +159,96 @@ function openBrowser(url) {
   });
 }
 
-const args = parseArgs(process.argv.slice(2));
+/** Construit l'URL du navigateur pour ces arguments (pur, testable). */
+export function launchUrl(argv) {
+  const args = parseArgs(argv);
+  // run= (execution) ou edit= (edition) : le verbe STAS.bat decide, sinon
+  // --edit force l'edition, sinon un fichier seul s'execute (comme la
+  // console). --run force l'execution explicite.
+  const runMode = args.verb ? args.verb === "run" : !args.edit;
+  const target = args.run ?? args.edit ?? args.file;
 
-// --open-test : NE DEMARRE PAS le serveur — construit l'URL (ou prend
-// celle passee en argument) et tente seulement l'ouverture du navigateur.
-// C'est l'outil de diagnostic a lancer depuis SA PROPRE console :
-//   node .../launch.js --open-test
-//   node .../launch.js --open-test "http://localhost:8080"
-if (process.argv.includes("--open-test")) {
-  const explicit = process.argv.slice(2).find(
-    (a) => !a.startsWith("--") && /^https?:\/\//i.test(a)
-  );
-  const testUrl = explicit || `http://localhost:${PORT}/packages/stas-web/index.html`;
-  console.log(`[stas-web] open test: ${testUrl}`);
-  openBrowser(testUrl);
-  setTimeout(() => process.exit(0), 2000); // give exec time to act
+  const query = new URLSearchParams();
+  if (target) query.set(runMode ? "run" : "edit", toUrlPath(target));
+  if (args.user) query.set("user", args.user);
+  if (args.config) query.set("config", args.config);
+  // Lance via STAS.bat (--web) : le renderer par defaut est pixel, le plus
+  // fidele a l'affichage STOS original ; --renderer= garde la priorite.
+  query.set("renderer", args.renderer ?? "pixel");
+
+  return `http://localhost:${PORT}/packages/stas-web/index.html${
+    query.toString() ? "?" + query.toString() : ""
+  }`;
 }
 
-// run= (execution) ou edit= (edition) : le verbe STAS.bat decide, sinon
-// --edit force l'edition, sinon un fichier seul s'execute (comme la console).
-const runMode = args.verb ? args.verb === "run" : !args.edit;
-const target = args.edit ?? args.file;
+/** Demarre le serveur puis ouvre le navigateur sur l'URL construite. */
+function start(argv) {
+  const url = launchUrl(argv);
+  console.log(`[stas-web] ${url}`);
 
-const query = new URLSearchParams();
-if (target) query.set(runMode ? "run" : "edit", toUrlPath(target));
-if (args.user) query.set("user", args.user);
-if (args.config) query.set("config", args.config);
-
-const base = `http://localhost:${PORT}`;
-const url = `${base}/packages/stas-web/index.html${
-  query.toString() ? "?" + query.toString() : ""
-}`;
-console.log(`[stas-web] ${url}`);
-
-// Demarrage du serveur (ROOT correct : racine STAS, pas packages/)
-const server = spawn(
-  process.execPath,
-  [join(ROOT, "packages", "stas-web", "serve.js")],
-  {
-    cwd: ROOT,
-    stdio: "inherit",
-    shell: false,
-  }
-);
-server.on("error", (e) => {
-  console.error("[stas-web] could not start the server:", e.message);
-  process.exit(1);
-});
-server.on("close", (code) => {
-  process.exit(code ?? 0);
-});
-
-// Browser: opened when the server responds. An opening failure must
-// NEVER stop the launcher - the server keeps running.
-(async () => {
-  try {
-    if (!(await waitServer(base, 15000))) {
-      console.error("[stas-web] server not responding yet - open manually:");
-      console.error("  " + url);
-      return;
+  // Demarrage du serveur (ROOT correct : racine STAS, pas packages/)
+  const server = spawn(
+    process.execPath,
+    [join(ROOT, "packages", "stas-web", "serve.js")],
+    {
+      cwd: ROOT,
+      stdio: "inherit",
+      shell: false,
     }
-    openBrowser(url);
-  } catch (e) {
-    console.error("[stas-web] opening cancelled:", e.message);
-    console.error("[stas-web] open manually: " + url);
+  );
+  server.on("error", (e) => {
+    console.error("[stas-web] could not start the server:", e.message);
+    process.exit(1);
+  });
+  server.on("close", (code) => {
+    process.exit(code ?? 0);
+  });
+
+  // Browser: opened when the server responds. An opening failure must
+  // NEVER stop the launcher - the server keeps running.
+  (async () => {
+    const base = `http://localhost:${PORT}`;
+    try {
+      if (!(await waitServer(base, 15000))) {
+        console.error("[stas-web] server not responding yet - open manually:");
+        console.error("  " + url);
+        return;
+      }
+      openBrowser(url);
+    } catch (e) {
+      console.error("[stas-web] opening cancelled:", e.message);
+      console.error("[stas-web] open manually: " + url);
+    }
+  })();
+}
+
+// Execute directement (STAS.bat) ? Le garde rend ce fichier importable
+// sans effet de bord (tests de launchUrl).
+const _self = fileURLToPath(import.meta.url);
+const _main =
+  process.argv[1] &&
+  (platform() === "win32"
+    ? resolve(process.argv[1]).toLowerCase() === _self.toLowerCase()
+    : resolve(process.argv[1]) === _self);
+
+if (_main) {
+  const argv = process.argv.slice(2);
+  // --open-test : NE DEMARRE PAS le serveur — tente seulement l'ouverture
+  // du navigateur. C'est l'outil de diagnostic a lancer depuis SA PROPRE
+  // console :
+  //   node .../launch.js --open-test
+  //   node .../launch.js --open-test "http://localhost:8080"
+  if (argv.includes("--open-test")) {
+    const explicit = argv.find(
+      (a) => !a.startsWith("--") && /^https?:\/\//i.test(a)
+    );
+    const testUrl =
+      explicit || `http://localhost:${PORT}/packages/stas-web/index.html`;
+    console.log(`[stas-web] open test: ${testUrl}`);
+    console.log(`[stas-web] url construite: ${launchUrl(argv)}`);
+    openBrowser(testUrl);
+    setTimeout(() => process.exit(0), 2000); // give exec time to act
+  } else {
+    start(argv);
   }
-})();
+}
