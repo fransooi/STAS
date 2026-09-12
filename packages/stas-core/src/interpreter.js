@@ -34,6 +34,7 @@ import {
   FUNC_TABLE, EXTFUNC_TABLE,
 } from "./instructions.js";
 import { pumpAnims } from "./palette.js";
+import { pumpSprites } from "./sprites.js";
 
 const COLON = 58; // ":"
 
@@ -168,6 +169,7 @@ export class Interpreter {
 
   async tick() {
     pumpAnims(this.io);   // FADE / SHIFT avancent en tâche de fond
+    pumpSprites(this.io); // moteur de sprites (MOVE / ANIM)
     if (this.io.tick) return this.io.tick(this);
     return new Promise((r) => setTimeout(r, 0));
   }
@@ -189,6 +191,7 @@ export class Interpreter {
       }
       const d = Math.min(step, left);
       pumpAnims(this.io); // FADE / SHIFT avancent pendant WAIT
+      pumpSprites(this.io);
       if (this.io.sleep) await this.io.sleep(d);
       else await new Promise((r) => setTimeout(r, d));
       left -= step;

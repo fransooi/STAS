@@ -230,6 +230,12 @@ are the PICTURE COMPACTOR (a faithful `COMPACT.S` two-stage RLE). Screen
 effects round off V2: `ZOOM`/`REDUCE` scale rectangles, `SCREEN COPY
 src[,x1,y1,x2,y2] TO dst[,x3,y3]` copies an area (to/from bank screens too),
 and `GR WRITING 1..4` selects replace/transparent/XOR/inverse-transparent.
+Sprites are fully wired too: `SPRITE n,x,y[,p]`, `MOVE ON|OFF|FREEZE [n]`,
+`MOVE X|Y n,a$`, `ANIM n,a$`, `UPDATE`, `FREEZE`/`UNFREEZE`, `OFF`,
+`PRIORITY ON|OFF`, `LIMIT SPRITE`, `X SPRITE`/`Y SPRITE`, `MOVEON`, `COLLIDE`,
+`DETECT`, `SET ZONE`/`RESET ZONE`/`ZONE`, `PUT SPRITE`, `GET SPRITE` — images
+come from an injected ASCII sprite bank and priority follows the original
+(PRIORITY ON = largest Y in front).
 `PLAY` is accepted but silent; `FLASH`/`KEY`/`CLICK` `ON|OFF`, `HIDE` and
 `SHOW` are no-ops.
 

@@ -22,16 +22,16 @@ raises STOS error **20** (`Function not implemented`), per
 | Category | Count |
 | --- | ---: |
 | Distinct tokenized keyword forms | **343** |
-| Implemented (handler present) | **221** |
-| Tokenized, **not** implemented → error 20 | **122** |
+| Implemented (handler present) | **244** |
+| Tokenized, **not** implemented → error 20 | **99** |
 | Manual entries **not tokenized at all** | **0** |
 
-Of the 221 "implemented" forms, 7 are pure structural markers (`TO`, `STEP`,
-`THEN`, `NEXT`, `WEND`, `UNTIL`, `ELSE`), leaving **≈ 214 distinct STOS
+Of the 244 "implemented" forms, 7 are pure structural markers (`TO`, `STEP`,
+`THEN`, `NEXT`, `WEND`, `UNTIL`, `ELSE`), leaving **≈ 237 distinct STOS
 features that actually run today**.
 
-> Iterations 1–10 landed: the count moved from 124 → **221** implemented
-> (217 → 122 missing).
+> Iterations 1–11 landed: the count moved from 124 → **244** implemented
+> (217 → 99 missing).
 
 **The token table is now complete:** `PACK` and `UNPACK` (the PICTURE
 COMPACTOR accessory) gained tokens in iteration 9. The difference between
@@ -201,16 +201,21 @@ round-trip is tested, including a noisy image. (The sprite-background default
 destination is not modelled yet, and `mode` 1/2 need non-lowres screens.)
 
 ### 3.7 Sprites & animation
-- `SPRITE n,x,y,p`, `UPDATE`, `FREEZE`, `OFF`, `MOVE ON|OFF|X|Y`, `MOVEON`
-- `ANIM`, `ANIM FREEZE`, `UNFREEZE`
-- `GET SPRITE`, `PUT SPRITE`, `REDRAW`, `PRIORITY`, `LIMIT SPRITE`
-- `ZONE`, `SET ZONE`, `RESET ZONE`, `DETECT`, `COLLIDE`
-- `X SPRITE`, `Y SPRITE`
-- `SYNCHRO O/N/OFF`
+✅ **Done (iteration 11).** The full `SPRITES.S` engine is wired to the
+interpreter: `SPRITE n,x,y[,p]` / `SPRITE ON|OFF [n]`, `MOVE ON|OFF|FREEZE [n]`,
+`MOVE X|Y n,a$`, `ANIM n,a$` / `ANIM ON|OFF|FREEZE [n]`, `UPDATE [ON|OFF]`,
+`REDRAW`, `FREEZE`/`UNFREEZE`, `OFF`, `PRIORITY ON|OFF`, `LIMIT SPRITE`,
+`X SPRITE`/`Y SPRITE`, `MOVEON`, `COLLIDE`, `DETECT`, `SET ZONE`/`RESET ZONE`/
+`ZONE`, `PUT SPRITE`, `GET SPRITE`, `SYNCHRO`.
+Faithful points: draw order (PRIORITY OFF = lowest number in front; PRIORITY ON
+= largest Y in front, ties by lowest number), MOVE/ANIM waiting for
+`MOVE ON`/`ANIM ON`, `UPDATE OFF` freezing the display while the engine keeps
+running, `LIMIT SPRITE` clipping, and the `MOVE_ERR`/`ANIM_ERR`/`SPRITE_ERR`
+codes. The engine advances on the interpreter *tick* (1 step = 1 frame = 20 ms).
 
-> Note: `packages/stas-sprites` already exists — an ASCII **editor** (grid,
-> tools, bank, animation, save) — but it is not yet wired to the interpreter as
-> a runtime sprite engine. That wiring is the actual gap here.
+> Images come from `io.spriteBank` (`{ sprites: [surface…] }`, image n =
+> `sprites[n-1]`), i.e. a `@stas/sprites` bank. Loading a `.mbk`/`.stasprite`
+> file into that bank at runtime is the remaining wiring.
 
 ### 3.8 Sound & music
 - `BELL`, `BOOM`, `SHOOT`, `NOISE`
@@ -302,6 +307,11 @@ These features *run* but do not match the manual exactly:
   neighbour) rather than on bitplanes, and default their destination to PHYSIC
   where the original used the sprite-background screen. Graphics writing mode
   is `GR WRITING 1..4` (distinct from the text `WRITING 1..3`).
+- **Sprites** are ASCII cell surfaces (the `@stas/sprites` model), composed by
+  `cellAt()` above the text and pixel layers. `PUT SPRITE`/`GET SPRITE` are
+  adapted to that model (stamp into / capture from the text layer) and `DETECT`
+  reads the LOGIC (decor) pixel. The bank must be injected via `io.spriteBank`;
+  there is no `.mbk` loader yet.
 - **`PLAY`** parses its arguments but produces no sound.
 - **`FLASH` / `KEY` / `CLICK` ON|OFF** and **`HIDE` / `SHOW`** are no-ops.
 - **`IF … THEN … ELSE`** single-line only (no multi-line blocks) — by design.
@@ -333,8 +343,9 @@ Ranked by value ÷ effort, assuming the console/canvas target:
    `ZOOM`/`REDUCE`, extended `SCREEN COPY`, `GR WRITING`.
 5. ✅ **Done (iteration 4)** — text windows (borders, relative coordinates,
    activation).
-6. **Sprite runtime** — wire `stas-sprites` to `SPRITE`/`MOVE`/`ANIM`/
-   `PUT`/`GET`/`ZONE`/`COLLIDE`.
+6. ✅ **Done (iteration 11)** — sprite runtime: `SPRITE`/`MOVE`/`ANIM`/
+   `UPDATE`/`PRIORITY`/`LIMIT SPRITE`/`PUT`/`GET`/`ZONE`/`COLLIDE`/`DETECT`.
+   (Loading a sprite bank at runtime still open.)
 7. **Sound** — a host audio connector (console + browser) for
    `PLAY`/`BELL`/`MUSIC`/`VOICE`/`VOLUME`.
 8. **Menus** — `MENU` system.

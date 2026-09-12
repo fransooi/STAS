@@ -2136,3 +2136,197 @@ test("ZOOM : agrandit un rectangle (plus proche voisin)", async () => {
 test("ZOOM : rétrécir = erreur 13", async () => {
   await expectError(["10 mode 0", "20 zoom logic,0,0,40,40 to physic,0,0,10,10"], ERR.FON_CALL);
 });
+
+// ---------------------------------------------------------------------------
+//  Sprites (moteur SPRITES.S)
+// ---------------------------------------------------------------------------
+
+function surf(w, h, ch, hx = 0, hy = 0) {
+  const cells = Array.from({ length: w * h }, () => ({ ch, fg: 0, bg: 15 }));
+  return { w, h, hx, hy, cells };
+}
+
+async function spriteRun(lines, bank) {
+  const stas = new Stas({ width: 20, height: 10, spriteBank: bank });
+  stas.loadSource(lines);
+  await stas.run();
+  return stas;
+}
+
+test("SPRITE : affiche l'image, XSPRITE/YSPRITE la relisent", async () => {
+  const stas = await spriteRun(
+    ["10 sprite 1,3,2,1", "20 print x sprite(1);y sprite(1)"],
+    { sprites: [surf(2, 2, "A")] },
+  );
+  assert.equal(stas.cellAt(3, 2).ch, "A");
+  assert.equal(stas.cellAt(4, 3).ch, "A");
+  assert.equal(stas.cellAt(5, 2).ch, " ");
+  assert.deepEqual(out(stas.buffer.toText()), ["32"]);
+});
+
+test("SPRITE OFF retire le sprite, SPRITE ON le remet", async () => {
+  const stas = await spriteRun(
+    ["10 sprite 1,0,0,1", "20 sprite off"],
+    { sprites: [surf(2, 2, "A")] },
+  );
+  assert.equal(stas.cellAt(0, 0).ch, " ");
+  assert.equal(stas.io.sprites.length, 0);
+});
+
+test("PRIORITY OFF (défaut) : le plus petit numéro passe devant", async () => {
+  const stas = await spriteRun(
+    ["10 sprite 1,0,0,1", "20 sprite 2,1,1,2"],
+    { sprites: [surf(2, 2, "A"), surf(2, 2, "B")] },
+  );
+  assert.equal(stas.cellAt(1, 1).ch, "A"); // sprite 1 devant
+});
+
+test("PRIORITY ON : le plus grand Y passe devant", async () => {
+  const stas = await spriteRun(
+    ["10 sprite 1,0,0,1", "20 sprite 2,1,1,2", "30 priority on"],
+    { sprites: [surf(2, 2, "A"), surf(2, 2, "B")] },
+  );
+  assert.equal(stas.cellAt(1, 1).ch, "B"); // sprite 2 (Y=1) devant
+});
+
+test("LIMIT SPRITE : masque ce qui sort du rectangle", async () => {
+  const stas = await spriteRun(
+    ["10 sprite 1,0,0,1", "20 limit sprite 1,1 to 2,2"],
+    { sprites: [surf(3, 3, "A")] },
+  );
+  assert.equal(stas.cellAt(0, 0).ch, " ");
+  assert.equal(stas.cellAt(1, 1).ch, "A");
+  assert.equal(stas.cellAt(2, 2).ch, "A");
+  assert.equal(stas.cellAt(2, 0).ch, " ");
+});
+
+test("MOVE X + SYNCHRO : un cran par SYNCHRO", async () => {
+  const stas = await spriteRun(
+    [
+      "10 sprite 1,0,0,1",
+      "20 move x 1,\"(1,2,3)\"",
+      "30 move on",
+      "40 synchro",
+      "50 print x sprite(1)",
+      "60 synchro",
+      "70 synchro",
+      "80 print x sprite(1)",
+    ],
+    { sprites: [surf(2, 2, "A")] },
+  );
+  assert.deepEqual(out(stas.buffer.toText()), ["2", "6"]);
+});
+
+test("MOVE : le mouvement attend MOVE ON", async () => {
+  const stas = await spriteRun(
+    ["10 sprite 1,0,0,1", "20 move x 1,\"(1,3,5)\"", "30 synchro", "40 print x sprite(1)"],
+    { sprites: [surf(2, 2, "A")] },
+  );
+  assert.deepEqual(out(stas.buffer.toText()), ["0"]);
+});
+
+test("FREEZE gèle le déplacement", async () => {
+  const stas = await spriteRun(
+    [
+      "10 sprite 1,0,0,1",
+      "20 move x 1,\"(1,3,5)\"",
+      "30 move on",
+      "40 freeze",
+      "50 synchro",
+      "60 print x sprite(1)",
+    ],
+    { sprites: [surf(2, 2, "A")] },
+  );
+  assert.deepEqual(out(stas.buffer.toText()), ["0"]);
+});
+
+test("ANIM change d'image à chaque cran, puis s'arrête", async () => {
+  const bank = { sprites: [surf(2, 2, "A"), surf(2, 2, "B")] };
+  const one = await spriteRun(
+    ["10 sprite 1,0,0,1", "20 anim 1,\"(2,1)(1,1)\"", "30 anim on", "40 synchro"],
+    bank,
+  );
+  assert.equal(one.cellAt(0, 0).ch, "B");
+  const two = await spriteRun(
+    ["10 sprite 1,0,0,1", "20 anim 1,\"(2,1)(1,1)\"", "30 anim on", "40 synchro", "50 synchro"],
+    bank,
+  );
+  assert.equal(two.cellAt(0, 0).ch, "A");
+});
+
+test("UPDATE OFF : le moteur tourne mais l'affichage est figé", async () => {
+  const stas = await spriteRun(
+    [
+      "10 sprite 1,0,0,1",
+      "20 move x 1,\"(1,5,3)\"",
+      "30 move on",
+      "40 update off",
+      "50 synchro",
+      "60 print x sprite(1)",
+      "70 update",
+    ],
+    { sprites: [surf(2, 2, "A")] },
+  );
+  // Le sprite a bougé (5) mais io.sprites a été rafraîchi seulement au UPDATE
+  assert.deepEqual(out(stas.buffer.toText()), ["5"]);
+  assert.equal(stas.io.sprites[0].x, 5);
+});
+
+test("SET ZONE / ZONE / RESET ZONE", async () => {
+  const stas = await spriteRun(
+    [
+      "10 sprite 1,5,5,1",
+      "20 set zone 3,0,0 to 10,10",
+      "30 print zone(1)",
+      "40 reset zone 3",
+      "50 print zone(1)",
+    ],
+    { sprites: [surf(2, 2, "A")] },
+  );
+  assert.deepEqual(out(stas.buffer.toText()), ["3", "0"]);
+});
+
+test("COLLIDE : masque des sprites dans la boîte de sensibilité", async () => {
+  const stas = await spriteRun(
+    [
+      "10 sprite 1,5,5,1",
+      "20 sprite 2,6,6,2",
+      "30 sprite 3,50,50,3",
+      "40 print collide(1,2,2)",
+    ],
+    { sprites: [surf(2, 2, "A"), surf(2, 2, "B"), surf(2, 2, "C")] },
+  );
+  assert.deepEqual(out(stas.buffer.toText()), ["4"]); // bit 2
+});
+
+test("DETECT : couleur du décor sous le point chaud", async () => {
+  const stas = await spriteRun(
+    ["10 paper 0", "20 mode 0", "30 plot 5,5,7", "40 sprite 1,5,5,1", "50 print detect(1)"],
+    { sprites: [surf(2, 2, "A")] },
+  );
+  assert.deepEqual(out(stas.buffer.toText()), ["7"]);
+});
+
+test("PUT SPRITE estampe dans le calque texte et retire le sprite", async () => {
+  const stas = await spriteRun(
+    ["10 sprite 1,3,2,1", "20 put sprite 1"],
+    { sprites: [surf(2, 2, "A")] },
+  );
+  assert.equal(stas.buffer.get(3, 2).ch, "A");
+  assert.equal(stas.io.sprites.length, 0);
+  assert.equal(stas.cellAt(3, 2).ch, "A");
+});
+
+test("GET SPRITE capture le calque texte dans l'image", async () => {
+  const bank = { sprites: [surf(2, 2, " ")] };
+  await spriteRun(['10 print "AB"', "20 get sprite 0,0,1"], bank);
+  assert.equal(bank.sprites[0].cells[0].ch, "A");
+  assert.equal(bank.sprites[0].cells[1].ch, "B");
+});
+
+test("SPRITE / MOVE / ANIM : erreurs dédiées", async () => {
+  await expectError(["10 sprite 16,0,0,1"], ERR.SPRITE_ERR);
+  await expectError(["10 sprite 1,0,0,9"], ERR.SPRITE_ERR);
+  await expectError(['10 move x 1,"nope"'], ERR.MOVE_ERR);
+  await expectError(['10 anim 1,"nope"'], ERR.ANIM_ERR);
+});

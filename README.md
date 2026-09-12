@@ -234,7 +234,13 @@ PICTURE COMPACTOR (RLE à deux étages fidèle à `COMPACT.S`). Les effets écra
 complètent V2 : `ZOOM`/`REDUCE` mettent des rectangles à l'échelle,
 `SCREEN COPY src[,x1,y1,x2,y2] TO dst[,x3,y3]` copie une zone (vers/depuis une
 banque écran aussi), et `GR WRITING 1..4` choisit
-remplacement/transparent/XOR/transparent-inverse. `PLAY` est accepté mais
+remplacement/transparent/XOR/transparent-inverse. Les sprites sont branchés :
+`SPRITE n,x,y[,p]`, `MOVE ON|OFF|FREEZE [n]`, `MOVE X|Y n,a$`, `ANIM n,a$`,
+`UPDATE`, `FREEZE`/`UNFREEZE`, `OFF`, `PRIORITY ON|OFF`, `LIMIT SPRITE`,
+`X SPRITE`/`Y SPRITE`, `MOVEON`, `COLLIDE`, `DETECT`,
+`SET ZONE`/`RESET ZONE`/`ZONE`, `PUT SPRITE`, `GET SPRITE` — les images
+viennent d'une banque de sprites ASCII injectée, et les priorités suivent
+l'original (PRIORITY ON = plus grand Y devant). `PLAY` est accepté mais
 silencieux ; `FLASH`/`KEY`/`CLICK` `ON|OFF`, `HIDE`, `SHOW` sont des no-ops.
 
 ### Mémoire — banques, PEEK / POKE

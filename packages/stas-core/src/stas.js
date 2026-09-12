@@ -80,6 +80,8 @@ export class Stas {
       asciiCache: null,    // cache du converter graphique -> ascii
       sprites: [],         // plan sprites (au-dessus de tout)
       spriteVersion: 0,
+      spr: null,           // état du moteur de sprites (voir sprites.js)
+      spriteBank: opts.spriteBank ?? null,   // { sprites: [surface…] } — image n = [n-1]
       mode: 0,             // MODE courant (DIVX / DIVY)
       clip: null,          // CLIP {x1,y1,x2,y2}
       lineStyle: null,     // SET LINE {mask,thick,begin,end}
@@ -162,6 +164,9 @@ export class Stas {
     }
     for (let i = sp.length - 1; i >= 0; i--) {    // sprites, du dessus vers le bas
       const s = sp[i];
+      if (s.clip && (x < s.clip.x1 || x > s.clip.x2 || y < s.clip.y1 || y > s.clip.y2)) {
+        continue;                                 // LIMIT SPRITE
+      }
       const sf = s.surface;
       const W = sf.width ?? sf.w;
       const H = sf.height ?? sf.h;
@@ -263,6 +268,8 @@ export class Stas {
     this.io.autoback = true;
     this.io.asciiCache = null;
     this.io.spriteVersion = 0;
+    this.io.sprites = [];
+    this.io.spr = null;
     this.io.grWriting = 1;
     this.io.anim = { shift: null, fade: null };
     this.io.paletteVersion = (this.io.paletteVersion | 0) + 1;

@@ -26,6 +26,7 @@ import {
 } from "./palette.js";
 import { doAppear, bankPalette, screenOperand, screenAddr, bankAddr, pixelView, PIXEL_W, PIXEL_H } from "./screens.js";
 import { packScreen, unpackScreen, TMODE } from "./compact.js";
+import { SPRITE_HANDLERS } from "./sprites.js";
 
 // --- petits combinateurs ---------------------------------------------------
 const num1 = (it) => it.toNum(it.args(1, 1)[0]);
@@ -1729,6 +1730,10 @@ export const INSTRUCTIONS = new Map([
   [T.PIE, (it) => doArcPie(it, true, false)],
   [T.SCREEN_SWAP, doScreenSwap],
   [T.SCREEN_COPY, doScreenCopy],
+  [T.SPRITE, SPRITE_HANDLERS.sprite],
+  [T.UPDATE, SPRITE_HANDLERS.update],
+  [T.FREEZE, SPRITE_HANDLERS.freeze],
+  [T.OFF, SPRITE_HANDLERS.off],
 ]);
 
 // ===========================================================================
@@ -1944,6 +1949,19 @@ export const EXT_INSTRUCTIONS = new Map([
   [SUB.SETWRITE, doGrWriting],
   [SUB.REDUCE, doReduce],
   [SUB.ZOOM, doZoom],
+  [SUB.MOVE, SPRITE_HANDLERS.moveOnOff],
+  [SUB.MOUVEX, SPRITE_HANDLERS.moveX],
+  [SUB.MOUVEY, SPRITE_HANDLERS.moveY],
+  [SUB.ANIM, SPRITE_HANDLERS.anim],
+  [SUB.UNFREEZE, SPRITE_HANDLERS.unfreeze],
+  [SUB.SETZONE, SPRITE_HANDLERS.setZone],
+  [SUB.RESZONE, SPRITE_HANDLERS.resetZone],
+  [SUB.LIMSPRITE, SPRITE_HANDLERS.limitSprite],
+  [SUB.PRIORITY, SPRITE_HANDLERS.priority],
+  [SUB.PUTSPRITE, SPRITE_HANDLERS.putSprite],
+  [SUB.GETSPRITE, SPRITE_HANDLERS.getSprite],
+  [SUB.SYNCHRO, SPRITE_HANDLERS.synchro],
+  [SUB.REDRAW, SPRITE_HANDLERS.redraw],
   [SUB.PALETTE, doPalette],
   [SUB.GETPALETTE, doGetPalette],
   [SUB.SHIFT, doShift],
@@ -2084,6 +2102,9 @@ export const FUNC_TABLE = new Map([
   [T.SCRN, funcScrn],
   [T.POINT, funcPoint],
   [T.COLOUR, funcColour],
+  [T.ZONE, SPRITE_HANDLERS.zone],
+  [T.XSPRITE, SPRITE_HANDLERS.xsprite],
+  [T.YSPRITE, SPRITE_HANDLERS.ysprite],
   [T.SCANCODE, (it) => INT(it.io.scancode ? it.io.scancode() : 0)],
   [T.MID, (it) => {
     const [sv, av, lv] = it.args(2, 3);
@@ -2217,6 +2238,9 @@ export const EXTFUNC_TABLE = new Map([
   [FSUB.DEG, (it) => FLOAT((num1(it) * 180) / Math.PI)],
   [FSUB.RAD, (it) => FLOAT((num1(it) * Math.PI) / 180)],
   [FSUB.PACK, funcPack],
+  [FSUB.COLLIDE, SPRITE_HANDLERS.collide],
+  [FSUB.MOVON, SPRITE_HANDLERS.movon],
+  [FSUB.DETECT, SPRITE_HANDLERS.detect],
   [FSUB.ERRN, (it) => INT(it.errn)],
   [FSUB.ERRL, (it) => INT(it.errl)],
   [FSUB.VARPTR, funcVarptr],

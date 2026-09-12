@@ -167,6 +167,8 @@ source.bas → tokenizer → Program → Interpreter → AsciiBuffer → rendere
   pixel planaire, `APPEAR` (révélation par pas copremier).
 - **compact.js** — PICTURE COMPACTOR : `PACK`/`UNPACK`, port de `COMPACT.S`
   (RLE à deux étages, en-tête `$06071963`).
+- **sprites.js** — moteur de sprites, port de `SPRITES.S` (`SPRITE`/`MOVE`/
+  `ANIM`/priorités/`UPDATE`/`LIMIT SPRITE`/zones/collisions) ; avance au tick.
 
 ---
 
@@ -198,6 +200,8 @@ palette      [r,g,b][16]              palette vivante lue par les renderers
 paletteST    number[16]               mots ST 9 bits $RGB (COLOUR/PALETTE)
 paletteVersion number                 repaint forcé sur modif de palette
 anim         {shift, fade}            animations de palette (avance au tick)
+spr          état du moteur de sprites (voir sprites.js)
+spriteBank   { sprites: [surface…] }  banque d'images (image n = [n-1])
 sprites / spriteVersion
 ```
 
@@ -298,14 +302,15 @@ node packages/stas-core/...    # le cœur s'importe directement (ESM relatif)
 ## 12. État actuel & suite
 
 Voir `IMPLEMENTATION-STATUS.md` pour le détail chiffré (dernier connu :
-**221 implémentés / 122 restants**). Fait : langage (maths/chaînes/système),
+**244 implémentés / 99 restants**). Fait : langage (maths/chaînes/système),
 erreurs (`ON ERROR`/`RESUME`/`ERRN`/`ERRL`), mémoire (banques, `PEEK`/`POKE`,
 `VARPTR`, plans ST), fenêtres texte, attributs texte, graphisme V2 COMPLET
-(primitives, palette `COLOUR`/`PALETTE`/`GET PALETTE`/`SHIFT`/`FADE`, `APPEAR`,
-`PACK`/`UNPACK`, `ZOOM`/`REDUCE`, `SCREEN COPY` de zone, `GR WRITING`).
+(primitives, palette, `APPEAR`, `PACK`/`UNPACK`, `ZOOM`/`REDUCE`, `SCREEN COPY`
+de zone, `GR WRITING`), et le **moteur de sprites** (priorités, `MOVE`/`ANIM`,
+zones, collisions).
 
 **Reste, par ordre suggéré :**
-1. **Sprites** — brancher `stas-sprites` au runtime (`SPRITE`, `MOVE`, `ANIM`, …) et le « décor » `BACK`.
+1. **Chargement d'une banque de sprites** (`.mbk`/`.stasprite`) et le « décor » `BACK`.
 2. **Musique** — `MUSIC`, `VOICE`, `VOLUME`, `TEMPO`, `ENVEL`, `PLAY` audible.
 3. **Menus**, **souris/joystick**, **fichiers/dossiers**, **éditeur**
    (`AUTO`, `RENUM`, `SEARCH`, `CHANGE`, …), **imprimante**.
