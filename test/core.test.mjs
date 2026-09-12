@@ -604,8 +604,8 @@ test("next/wend/until orphelins = erreurs 23/25/27", async () => {
 });
 
 test("fonctions/instructions non implémentées = erreur 20", async () => {
-  await expectError(["10 poke 0,1"], ERR.NOT_IMPL);
-  await expectError(["10 print peek(0)"], ERR.NOT_IMPL);
+  await expectError(["10 call 0"], ERR.NOT_IMPL);
+  await expectError(["10 print scrn(0,0)"], ERR.NOT_IMPL);
 });
 
 test('"STAS RUN" à l\'invite exécute le programme', async () => {
@@ -1105,7 +1105,7 @@ test("reserve as screen + start(n) : banque réservée puis adresse", async () =
   ]);
   await stas.run();
   assert.ok(/\d/.test(stas.buffer.toText()));
-  assert.ok(stas.io.banks.get(5) === "screen");
+  assert.equal(stas.io.banks.get(5).kind, "screen");
 });
 
 test("start(n) sans reserve = erreur 44", async () => {
@@ -1343,4 +1343,147 @@ test("BREAK ON/OFF : pilote l'interruption Ctrl-C", async () => {
   assert.equal(stas.interp.breakEnabled, true);
   stas.requestBreak();
   assert.equal(stas.interp.breakRequested, true);
+});
+
+// ---------------------------------------------------------------------------
+//  §3.2 — mémoire : banques adressées, PEEK/POKE, bits
+// ---------------------------------------------------------------------------
+
+test("banques : RESERVE, LENGTH, START, PEEK/POKE", async () => {
+  const stas = new Stas({});
+  stas.loadSource([
+    "10 reserve as data 5,100",
+    "20 print length(5)",
+    "30 poke start(5),65",
+    "40 poke start(5)+1,66",
+    "50 print peek(start(5));chr$(peek(start(5)+1))",
+  ]);
+  await stas.run();
+  assert.deepEqual(out(stas.buffer.toText()), ["256", "65B"]);
+  assert.equal(stas.io.banks.get(5).kind, "data");
+  assert.equal(stas.io.banks.get(5).size, 256);
+});
+
+test("banques : règles d'erreur", async () => {
+  await expectError(["10 print start(5)"], ERR.BANK_NOT_RES);        // 44
+  await expectError(["10 reserve as screen 5", "20 reserve as screen 5"], ERR.BANK_RES); // 41
+  await expectError(["10 reserve as screen 15"], ERR.BANK15_MENU);    // 81
+  // LENGTH d'une banque absente = 0 (pas une erreur)
+  assert.deepEqual(await runOut(["10 print length(9)"]), ["0"]);
+});
+
+test("PEEK/POKE/DEEK/DOKE/LEEK/LOKE/COPY/FILL", async () => {
+  assert.deepEqual(await runOut([
+    "10 poke 1000,123",
+    "20 print peek(1000)",
+    "30 doke 1000,65535",
+    "40 print deek(1000)",
+    "50 loke 1000,-1",
+    "60 print leek(1000)",
+    "70 poke 1000,7:poke 1001,8:copy 1000,1001 to 1100",
+    "80 print peek(1100);peek(1101)",
+    "90 fill 1200 to 1207,$01020304",
+    "100 print peek(1200);peek(1201);peek(1202);peek(1203)",
+  ]), ["123", "65535", "-1", "78", "1234"]);
+});
+
+test("DEEK/LEEK : adresse impaire = erreur 32", async () => {
+  await expectError(["10 print deek(1001)"], ERR.ADDR_ERROR);
+  await expectError(["10 print leek(1003)"], ERR.ADDR_ERROR);
+});
+
+test("HUNT : trouve une chaîne en mémoire", async () => {
+  assert.deepEqual(await runOut([
+    "10 poke 4000,72:poke 4001,73:poke 4002,33",
+    '20 print hunt(4000 to 4003,"HI")',
+    '30 print hunt(4000 to 4003,"ZZ")',
+  ]), ["4000", "0"]);
+});
+
+test("bits (BSET/BCLR/BCHG/BTST) et rotations (ROL/ROR)", async () => {
+  assert.deepEqual(await runOut([
+    "10 a=0:bset a,3:print a",
+    "20 print btst(a,3);btst(a,2)",
+    "30 bclr a,3:print a",
+    "40 b=1:bchg b,0:print b",
+    "50 x=1:rol x,1:print x",
+    "60 y=2:ror y,1:print y",
+  ]), ["8", "10", "0", "0", "2", "1"]);
+});
+
+test("mémoire écran : compatible (plans ST) par défaut", async () => {
+  const stas = new Stas({});
+  stas.loadSource(["10 paper 0", "20 mode 0", "30 poke physic,255", "40 print peek(physic)"]);
+  await stas.run();
+  assert.deepEqual(out(stas.buffer.toText()), ["255"]);
+  assert.equal(stas.io.physic.colors[0], 1); // plan 0, pixels 0..7
+  assert.equal(stas.io.physic.colors[7], 1);
+  assert.equal(stas.io.physic.colors[8], 0); // octet suivant = autre groupe
+});
+
+test("mémoire écran : native (1 octet/pixel) via memMode", async () => {
+  const stas = new Stas({ memMode: "native" });
+  stas.loadSource(["10 mode 0", "20 poke physic+100,9", "30 print peek(physic+100)"]);
+  await stas.run();
+  assert.deepEqual(out(stas.buffer.toText()), ["9"]);
+  assert.equal(stas.io.physic.colors[100], 9);
+});
+
+test("VARPTR : variables vues comme de la mémoire", async () => {
+  assert.deepEqual(await runOut([
+    "10 loke varptr(A),1000",
+    "20 print A",
+    '30 s$="HI":p=varptr(s$)',
+    "40 print peek(p);peek(p+1);deek(p-2)",
+    "50 b=$01020304:p2=varptr(b):print peek(p2)",
+    "60 b=$05060708:print peek(p2)",
+    "70 f=2.5:print deek(varptr(f))",
+  ]), ["1000", "72732", "1", "5", "16388"]);
+});
+
+test("BCOPY : copie de banque à banque", async () => {
+  assert.deepEqual(await runOut([
+    "10 reserve as data 5,256",
+    "20 reserve as data 6,256",
+    "30 poke start(5),77",
+    "40 bcopy 5 to 6",
+    "50 print peek(start(6))",
+  ]), ["77"]);
+});
+
+test("BSAVE/BLOAD : bloc mémoire via le connecteur", async () => {
+  const files = new Map();
+  const stas = new Stas({});
+  const no = { success: false, error: true, data: {}, message: "no", info: {} };
+  stas.io.sendCommand = async (command, params) => {
+    if (command === "stas:bsave") {
+      files.set(params.path, params.data);
+      return { success: true, error: false, data: {}, message: "", info: {} };
+    }
+    if (command === "stas:bload") {
+      if (!files.has(params.path)) {
+        return { success: false, error: true, data: { stosCode: 48 }, message: "", info: {} };
+      }
+      return { success: true, error: false, data: { data: files.get(params.path) }, message: "", info: {} };
+    }
+    return no;
+  };
+  stas.loadSource([
+    "10 poke 500,9:poke 501,8:poke 502,7",
+    '20 bsave "blk.bin",500 to 502',
+    "30 poke 500,0:poke 501,0:poke 502,0",
+    '40 bload "blk.bin",500',
+    "50 print peek(500);peek(501);peek(502)",
+  ]);
+  await stas.run();
+  assert.deepEqual(out(stas.buffer.toText()), ["987"]);
+  assert.deepEqual(files.get("blk.bin"), [9, 8, 7]);
+});
+
+test("accessoires : ACCLOAD/ACCNEW/ACCNB acceptés", async () => {
+  assert.deepEqual(await runOut([
+    '10 accload "x.acc"',
+    "20 accnew",
+    "30 print accnb",
+  ]), ["0"]);
 });

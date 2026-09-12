@@ -174,4 +174,33 @@ export class LocalStasConnector {
     }
     return answerOk({ path: full, userName, source });
   }
+
+  /** stas:bsave — écrit un bloc mémoire binaire (tableau d'octets). */
+  async command_bsave({ path, data, userName }) {
+    if (!path || !String(path).trim()) {
+      return answerError("stas:bad-file-name", { stosCode: STOS_BAD_FILE_NAME });
+    }
+    const full = this.resolvePath(String(path));
+    const buf = Buffer.from(Array.isArray(data) ? data : []);
+    writeFileSync(full, buf);
+    return answerOk({ path: full, userName, bytes: buf.length });
+  }
+
+  /** stas:bload — lit un bloc mémoire binaire. */
+  async command_bload({ path, userName }) {
+    if (!path || !String(path).trim()) {
+      return answerError("stas:bad-file-name", { stosCode: STOS_BAD_FILE_NAME });
+    }
+    const full = this.resolvePath(String(path));
+    let buf;
+    try {
+      buf = readFileSync(full);
+    } catch {
+      return answerError("stas:file-not-found", {
+        stosCode: STOS_FILE_NOT_FOUND,
+        path: full,
+      });
+    }
+    return answerOk({ path: full, userName, data: Array.from(buf) });
+  }
 }

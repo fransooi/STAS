@@ -93,6 +93,49 @@ test("connector : commande inconnue -> awi:command-not-found", async () => {
   assert.equal(a.message, "awi:command-not-found");
 });
 
+test("connector : stas:bsave/stas:bload roundtrip binaire", async () => {
+  const root = mkdtempSync(join(tmpdir(), "stas-bin-"));
+  try {
+    const c = new LocalStasConnector({ root });
+    const b = await c.sendMessage("stas:bsave", {
+      path: "blk.bin",
+      data: [0, 1, 127, 255],
+    });
+    assert.equal(b.success, true);
+    assert.equal(b.data.bytes, 4);
+    assert.deepEqual([...readFileSync(join(root, "blk.bin"))], [0, 1, 127, 255]);
+
+    const l = await c.sendMessage("stas:bload", { path: "blk.bin" });
+    assert.equal(l.success, true);
+    assert.deepEqual(l.data.data, [0, 1, 127, 255]);
+
+    const missing = await c.sendMessage("stas:bload", { path: "nope.bin" });
+    assert.equal(missing.data.stosCode, 48);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("connector : BSAVE/BLOAD de bout en bout (Stas + LocalStasConnector)", async () => {
+  const { Stas } = await import("../packages/stas-core/index.js");
+  const root = mkdtempSync(join(tmpdir(), "stas-bin-e2e-"));
+  try {
+    const c = new LocalStasConnector({ root });
+    const stas = new Stas({ sendCommand: (cmd, p) => c.sendMessage(cmd, p) });
+    stas.loadSource([
+      "10 poke 2000,11:poke 2001,22",
+      '20 bsave "blk.bin",2000 to 2001',
+      "30 poke 2000,0:poke 2001,0",
+      '40 bload "blk.bin",2000',
+      "50 print peek(2000);peek(2001)",
+    ]);
+    await stas.run();
+    assert.ok(stas.buffer.toText().includes("1122"));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("connector : enveloppe reply façon EdHttp { id, responseTo, parameters }", async () => {
   const c = new LocalStasConnector({});
   const msg = { id: "m1", command: "stas:save", parameters: { path: "x" } };

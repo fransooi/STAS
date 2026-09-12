@@ -64,7 +64,11 @@ const stas = new Stas({
   width: _textRes ? _textRes.cols : 80,
   height: _textRes ? _textRes.rows : 25,
   langue,
+  memMode: _opt("mem") === "native" ? "native" : "compatible",
 });
+if (_opt("mem") && _opt("mem") !== "compatible" && _opt("mem") !== "native") {
+  console.warn(`[stas-web] mem=${_opt("mem")} ignoré (compatible ou native)`);
+}
 // Résolution texte explicite -> MODE ne doit pas la défaire.
 if (_textRes) stas.io.lockTextRes = true;
 

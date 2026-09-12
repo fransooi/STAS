@@ -217,6 +217,42 @@ form `DRAW "r10 d20"`), `BOX`, `BAR`, `RBOX`, `RBAR` (rounded corners),
 `PLAY` is accepted but silent; `FLASH`/`KEY`/`CLICK` `ON|OFF`, `HIDE` and
 `SHOW` are no-ops.
 
+### Memory — banks, PEEK / POKE
+
+`RESERVE AS SCREEN|DATASCREEN|WORK|DATA|SET n[,length]`, `ERASE n`, `START(n)`
+(bank base address) and `LENGTH(n)` (bank length — note `LEN(a$)` is the
+string length, per the STOS reference card).
+
+Memory instructions address a 32-bit space whose high bits carry flags:
+
+| bits | meaning |
+| ---- | ------- |
+| 31 | always 0 (addresses stay positive) |
+| 30 | LOGIC screen |
+| 29 | PHYSIC screen |
+| 28..25 | bank number (1–15) |
+| 24..0 | offset |
+
+`PEEK`/`POKE` (byte), `DEEK`/`DOKE` (word, even address), `LEEK`/`LOKE`
+(long, even address), `COPY start,finish TO dest`, `FILL start TO finish,lw`,
+`HUNT(start TO end,a$)`, `BCOPY src TO dst`, `BLOAD`/`BSAVE` (binary blocks
+through the storage connector). `BCHG`/`BCLR`/`BSET`/`BTST` and `ROL`/`ROR`
+act on variables. `VARPTR(variable)` gives a variable's address in the flat
+RAM (4-byte integer, 8-byte big-endian IEEE double, or string with its
+2-byte length just before the first character). An address with no flag and
+bank 0 falls in a flat 1 MB RAM.
+
+Screen memory has two representations, picked by `mem=compatible` (default)
+or `mem=native`:
+
+- **compatible** — the real Atari ST layout: 4 bitplanes interleaved by
+  16-bit words (320×200, 32000 bytes, 160 bytes per line), so 1988 programs
+  that poke the screen behave unchanged;
+- **native** — one byte per pixel (palette index), 64000 bytes.
+
+Set with `--mem=` on the console, `?mem=` or `[web] mem=` in the browser,
+`[console] mem=` in an INI file.
+
 ### Semantic decisions (V1)
 
 - `TRUE` is **1**, comparisons return 0/1

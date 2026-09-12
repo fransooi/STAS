@@ -22,16 +22,16 @@ raises STOS error **20** (`Function not implemented`), per
 | Category | Count |
 | --- | ---: |
 | Distinct tokenized keyword forms | **341** |
-| Implemented (handler present) | **145** |
-| Tokenized, **not** implemented → error 20 | **196** |
+| Implemented (handler present) | **169** |
+| Tokenized, **not** implemented → error 20 | **172** |
 | Manual entries **not tokenized at all** | **2** |
 
-Of the 145 "implemented" forms, 7 are pure structural markers (`TO`, `STEP`,
-`THEN`, `NEXT`, `WEND`, `UNTIL`, `ELSE`), leaving **≈ 138 distinct STOS
+Of the 169 "implemented" forms, 7 are pure structural markers (`TO`, `STEP`,
+`THEN`, `NEXT`, `WEND`, `UNTIL`, `ELSE`), leaving **≈ 162 distinct STOS
 features that actually run today**.
 
-> Iterations 1–2 landed: the count moved from 124 → **145** implemented
-> (217 → 196 missing).
+> Iterations 1–3 landed: the count moved from 124 → **169** implemented
+> (217 → 172 missing).
 
 **The token table is *almost* complete:** only **`PACK`** and **`UNPACK`**
 (screen pack/unpack) from the reference card have no token. Everything else is
@@ -40,7 +40,7 @@ tables, not the tokenizer.
 
 ---
 
-## 2. Implemented today (145 forms)
+## 2. Implemented today (169 forms)
 
 **Control flow & structures**
 `GOTO`, `GOSUB`, `RETURN`, `POP`, `FOR…TO…STEP…NEXT`, `WHILE…WEND`,
@@ -77,6 +77,15 @@ printed precision of reals.
 `ON ERROR GOTO line` (`0` disables), `RESUME`, `RESUME NEXT`, `RESUME n`,
 `ERRN`, `ERRL` (real values), `BREAK ON|OFF`.
 
+**Memory**
+`RESERVE AS SCREEN|DATASCREEN|WORK|DATA|SET n[,length]`, `ERASE n`, `START(n)`,
+`LENGTH(n)` (bank length), `PEEK`/`POKE` (byte), `DEEK`/`DOKE` (word),
+`LEEK`/`LOKE` (long), `COPY`, `FILL`, `HUNT`, `VARPTR` (variable arena),
+`BCOPY`, `BLOAD`/`BSAVE` (storage connector), `BCHG`/`BCLR`/`BSET`/`BTST`,
+`ROL`/`ROR`, `ACCLOAD`/`ACCNEW`/`ACCNB`. Emulated banks and 32-bit encoded
+addresses; screens exposed as the ST planar layout (`mem=compatible`,
+default) or one byte per pixel (`mem=native`).
+
 **Strings**
 `CHR$ ASC LEN LEFT$ RIGHT$ MID$ STR$ VAL SPACE$ STRING$ INSTR UPPER$ LOWER$
 HEX$ BIN$`.
@@ -89,7 +98,7 @@ HEX$ BIN$`.
 
 ---
 
-## 3. Remaining work (196 tokenized forms → error 20)
+## 3. Remaining work (172 tokenized forms → error 20)
 
 Grouped by subsystem, not by token table, so it maps to actual work items.
 
@@ -99,11 +108,15 @@ real `ERRN`/`ERRL`, and `BREAK ON|OFF`.
 Still open: `DEF FN name(…)` / `FN name(…)`.
 
 ### 3.2 Memory / low-level layer
-- `PEEK`, `DEEK`, `LEEK`, `POKE`, `DOKE`, `LOKE`
-- `COPY`, `FILL`, `HUNT`, `VARPTR`
-- `BCHG`, `BCLR`, `BSET`, `BTST`, `ROL`, `ROR`
-- Bank/accessory: `BLOAD`, `BSAVE`, `BGRAB`, `BCOPY`, `ACCLOAD`, `ACCNEW`, `ACCNB`
-- Bare-metal, likely permanent error 20: `CALL`, `TRAP`, `AREG`, `DREG`, `PSG`
+✅ **Done (iteration 3).** Emulated banks (`RESERVE AS …`, `ERASE`, `START(b)`,
+`LENGTH(b)`), encoded 32-bit addresses, both screen models (`mem=compatible`
+default / `mem=native`), the `PEEK`/`POKE` family, `COPY`, `FILL`, `HUNT`,
+`VARPTR` (variable arena), `BCOPY`, `BLOAD`/`BSAVE` (via the storage
+connector), the accessories `ACCLOAD`/`ACCNEW`/`ACCNB` (accepted; no
+multi-program support), and the bit/rotate ops
+`BCHG`/`BCLR`/`BSET`/`BTST`/`ROL`/`ROR`.
+Still at error 20 by design: `BGRAB` (needs program slots) and the bare-metal
+instructions `CALL`/`TRAP`/`AREG`/`DREG`/`PSG`.
 
 ### 3.3 String & math leftovers
 ✅ **Done (iteration 1).** `HSIN HCOS HTAN ASIN ACOS`, `MATCH`, `FLIP$`,
@@ -206,6 +219,14 @@ These features *run* but do not match the manual exactly:
   evaluator runs (each occurrence is read and substituted in place), so it now
   works inside any expression. A branch of `IF` that is not taken is never
   read — the scan stops at `:`, `ELSE` and `THEN`.
+- **`LENGTH`** was repointed from string length to **bank** length; `LEN(a$)`
+  remains the string length (faithful to the reference card).
+- **Screen memory** exposes the Atari ST planar layout by default
+  (`mem=compatible`); `mem=native` gives the simpler one-byte-per-pixel view.
+- **`VARPTR`** allocates each variable in the flat RAM: integers as 4 bytes,
+  reals as 8-byte big-endian IEEE doubles, strings with the 2-byte length
+  before the first character (`DEEK(VARPTR(A$)-2)`). Writes through the
+  address update the variable (arena sync).
 - **`ERRN` / `ERRL`** always return 0 — they need the error state once
   `ON ERROR` exists.
 - **`PLAY`** parses its arguments but produces no sound.
@@ -226,6 +247,7 @@ These features *run* but do not match the manual exactly:
 
 Ranked by value ÷ effort, assuming the console/canvas target:
 
+0. ✅ **Done (iteration 3)** — memory layer (§3.2).
 1. ✅ **Done (iteration 1)** — cheap language completeness: `HSIN HCOS HTAN
    ASIN ACOS`, `MATCH`, `FLIP$`, `INPUT$`, `SWAP`, `FIX`, `USING`, `FREE`,
    `TIME$`, `DATE$`, `LANGUAGE`, `SORT`, `DEG`/`RAD` dual.

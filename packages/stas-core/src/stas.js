@@ -15,6 +15,7 @@
 
 import { AsciiBuffer, STOS_PALETTE } from "./ascii-buffer.js";
 import { PixelScreen } from "./pixel-screen.js";
+import { Memory } from "./memory.js";
 import { convertScreen } from "./ascii-converter.js";
 import { Program } from "./program.js";
 import { Interpreter } from "./interpreter.js";
@@ -47,6 +48,10 @@ export class Stas {
     this.program = new Program();
     this.io = {
       buffer: this.buffer,
+      // Modèle d'accès mémoire des écrans : "compatible" (format Atari ST,
+      // plans entrelacés, défaut) ou "native" (un octet par pixel).
+      memMode: opts.memMode ?? "compatible",
+      mem: null,               // Memory — créé juste après (a besoin de io)
       readLine: opts.readLine,
       inkey: opts.inkey,
       now: opts.now,
@@ -70,6 +75,7 @@ export class Stas {
       sprites: [],         // plan sprites (au-dessus de tout)
       spriteVersion: 0,
     };
+    this.io.mem = new Memory(this.io);
     this.interp = new Interpreter(this.program, this.io);
     if (opts.langue) this.interp.langue = opts.langue;
   }
@@ -246,3 +252,8 @@ export class Stas {
 export { AsciiBuffer, STOS_PALETTE, Program, Interpreter, tokenize };
 export { PixelScreen, SCREEN_W, SCREEN_H } from "./pixel-screen.js";
 export { convertScreen } from "./ascii-converter.js";
+export {
+  Memory, bankBase,
+  MEM_LOGIC, MEM_PHYSIC, MEM_BANK_SHIFT, MEM_BANK_MASK, MEM_OFFSET_MASK,
+  SCREEN_ST_BYTES, SCREEN_NATIVE_BYTES,
+} from "./memory.js";

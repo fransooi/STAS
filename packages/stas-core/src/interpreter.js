@@ -22,6 +22,7 @@
 
 import { T, SUB, FSUB } from "./tokens.js";
 import { StosError, ERR } from "./errors.js";
+import { MEM_LOGIC, MEM_PHYSIC } from "./memory.js";
 import {
   INT, FLOAT, STR,
   T_INT, T_FLOAT, T_STR,
@@ -84,6 +85,8 @@ export class Interpreter {
     this.degMode = false;       // false = radians (défaut STOS)
     this.fixPrecision = null;   // FIX(n) : précision d'affichage des réels (null = %g)
     this._inputTemps = new Map(); // INPUT$(n) résolus pour l'instruction courante
+    this.varSlots = new Map();  // VARPTR : adresse mémoire allouée par variable
+    this.varNext = 0x080000;    // zone VARPTR dans la RAM plate (1 Mo)
     this.errorHandler = null;   // ON ERROR GOTO : numéro de ligne, ou null
     this.errn = 0;              // ERRN : numéro de la dernière erreur
     this.errl = 0;              // ERRL : ligne de la dernière erreur
@@ -114,6 +117,8 @@ export class Interpreter {
     this.dataItems = null;
     this.dataPtr = 0;
     this.fixPrecision = null;
+    this.varSlots = new Map();
+    this.varNext = 0x080000;
   }
 
   // -- Providers ----------------------------------------------------------
@@ -773,6 +778,13 @@ export class Interpreter {
     const ex = this.vars.get(name);
     if (ex && ex.array) this.err(ERR.TYPE_MISMATCH);
     this.vars.set(name, val);
+    // VARPTR : tenir la mémoire allouée à la variable à jour
+    let slot = this.varSlots.get(name);
+    if (slot) {
+      if (slot.size < this._slotSize(val)) slot = this._allocSlot(name, val);
+      slot.type = val.t;
+      this._writeSlot(slot, val);
+    }
   }
 
   getVar(name) {
@@ -806,6 +818,86 @@ export class Interpreter {
     if (!a || !a.array) this.err(ERR.NO_ARRAY);
     if ((val.t === T_STR) !== (a.t === T_STR)) this.err(ERR.TYPE_MISMATCH);
     a.data[this.flatIndex(a, dims)] = val.v;
+  }
+
+  // -- VARPTR : les variables vues comme de la mémoire ---------------------
+  //  Entier : 4 octets ; réel : 8 octets IEEE double (gros-boutiste, 68000) ;
+  //  chaîne : longueur sur 2 octets PUIS les caractères — VARPTR pointe sur
+  //  le premier caractère, la longueur se lit en DEEK(VARPTR(A$)-2), comme
+  //  le documente le manuel.
+
+  _slotSize(v) {
+    if (v.t === T_STR) return 2 + v.v.length;
+    return v.t === T_FLOAT ? 8 : 4;
+  }
+
+  _allocSlot(name, v) {
+    const size = this._slotSize(v);
+    const addr = this.varNext;
+    this.varNext = (this.varNext + size + 3) & ~3;
+    const slot = { addr, size, type: v.t };
+    this.varSlots.set(name, slot);
+    return slot;
+  }
+
+  varptr(name) {
+    const ex = this.vars.get(name);
+    if (ex && ex.array) this.err(ERR.FON_CALL); // tableaux : non supportés (V1)
+    const v = this.getVar(name);
+    let slot = this.varSlots.get(name);
+    if (!slot || slot.size < this._slotSize(v)) slot = this._allocSlot(name, v);
+    slot.type = v.t;
+    this._writeSlot(slot, v);
+    return slot.type === T_STR ? slot.addr + 2 : slot.addr;
+  }
+
+  _writeSlot(slot, v) {
+    const mem = this.io.mem;
+    if (v.t === T_STR) {
+      const s = v.v;
+      mem.writeByte(slot.addr, (s.length >> 8) & 0xff);
+      mem.writeByte(slot.addr + 1, s.length & 0xff);
+      for (let i = 0; i < s.length; i++) {
+        mem.writeByte(slot.addr + 2 + i, s.charCodeAt(i) & 0xff);
+      }
+    } else if (v.t === T_FLOAT) {
+      const ab = new ArrayBuffer(8);
+      new DataView(ab).setFloat64(0, v.v, false); // IEEE double gros-boutiste
+      const u = new Uint8Array(ab);
+      for (let i = 0; i < 8; i++) mem.writeByte(slot.addr + i, u[i]);
+    } else {
+      const u = v.v | 0;
+      for (let i = 0; i < 4; i++) mem.writeByte(slot.addr + i, (u >>> (24 - 8 * i)) & 0xff);
+    }
+  }
+
+  _readSlot(name, slot) {
+    const mem = this.io.mem;
+    if (slot.type === T_STR) {
+      const len = (mem.readByte(slot.addr) << 8) | mem.readByte(slot.addr + 1);
+      let s = "";
+      for (let i = 0; i < len; i++) s += String.fromCharCode(mem.readByte(slot.addr + 2 + i));
+      this.vars.set(name, STR(s));
+    } else if (slot.type === T_FLOAT) {
+      const ab = new ArrayBuffer(8);
+      const u = new Uint8Array(ab);
+      for (let i = 0; i < 8; i++) u[i] = mem.readByte(slot.addr + i);
+      this.vars.set(name, FLOAT(new DataView(ab).getFloat64(0, false)));
+    } else {
+      let v = 0;
+      for (let i = 0; i < 4; i++) v = (v * 256 + mem.readByte(slot.addr + i)) >>> 0;
+      this.vars.set(name, INT(v | 0));
+    }
+  }
+
+  /** Après une écriture mémoire, relit les variables dont la zone est touchée. */
+  memSync(start, end) {
+    if (this.varSlots.size === 0) return;
+    for (const [name, slot] of this.varSlots) {
+      if (slot.addr <= end && slot.addr + slot.size - 1 >= start) {
+        this._readSlot(name, slot);
+      }
+    }
   }
 
   /** SORT a$(0) — trie un tableau 1-D par ordre croissant (nombres ou chaînes). */
@@ -999,9 +1091,9 @@ export class Interpreter {
         return this.getVar(t.name);
       }
       case T.LOGIC:
-        return this.getVar("logic");
+        return this.vars.get("logic") ?? INT(MEM_LOGIC);
       case T.PHYSIC:
-        return this.getVar("physic");
+        return this.vars.get("physic") ?? INT(MEM_PHYSIC);
       case T.EXT_FUNC: {
         const rec = this._inputTemps.get(this.pc.ti - 1);
         if (rec) {

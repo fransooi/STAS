@@ -220,6 +220,45 @@ texte garde son `PEN`), `CENTRE`, `RESERVE AS SCREEN n` + `START(n)`,
 affectation `LOGIC=`/`PHYSIC=`. `PLAY` est accepté mais silencieux ;
 `FLASH`/`KEY`/`CLICK` `ON|OFF`, `HIDE`, `SHOW` sont des no-ops.
 
+### Mémoire — banques, PEEK / POKE
+
+`RESERVE AS SCREEN|DATASCREEN|WORK|DATA|SET n[,longueur]`, `ERASE n`,
+`START(n)` (adresse de base de la banque) et `LENGTH(n)` (longueur de la
+banque — attention, `LEN(a$)` est la longueur de chaîne, comme le dit la
+carte de référence du STOS).
+
+Les instructions mémoire adressent un espace 32 bits dont les bits hauts
+portent des drapeaux :
+
+| bits | sens |
+| ---- | --- |
+| 31 | toujours 0 (les adresses restent positives) |
+| 30 | écran LOGIC |
+| 29 | écran PHYSIC |
+| 28..25 | numéro de banque (1–15) |
+| 24..0 | décalage |
+
+`PEEK`/`POKE` (octet), `DEEK`/`DOKE` (mot, adresse paire), `LEEK`/`LOKE`
+(mot long, adresse paire), `COPY start,finish TO dest`,
+`FILL start TO finish,lw`, `HUNT(start TO end,a$)`, `BCOPY src TO dst`,
+`BLOAD`/`BSAVE` (blocs binaires via le connecteur de stockage).
+`BCHG`/`BCLR`/`BSET`/`BTST` et `ROL`/`ROR` agissent sur des variables.
+`VARPTR(variable)` donne l'adresse d'une variable dans la RAM plate (entier
+sur 4 octets, réel IEEE double gros-boutiste sur 8 octets, ou chaîne dont la
+longueur sur 2 octets précède le premier caractère). Une adresse sans
+drapeau et de banque 0 tombe dans une RAM plate de 1 Mo.
+
+La mémoire écran a deux représentations, choisies par `mem=compatible`
+(défaut) ou `mem=native` :
+
+- **compatible** — le format Atari ST réel : 4 plans entrelacés par mots de
+  16 bits (320×200, 32000 octets, 160 octets par ligne), pour que les
+  programmes de 1988 qui poken l'écran fonctionnent tels quels ;
+- **native** — un octet par pixel (indice palette), 64000 octets.
+
+Réglable par `--mem=` en console, `?mem=` ou `[web] mem=` dans le
+navigateur, `[console] mem=` dans un fichier INI.
+
 ### Décisions sémantiques (V1)
 
 - `TRUE` vaut **1**, comparaisons rendent 0/1

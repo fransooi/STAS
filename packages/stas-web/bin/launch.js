@@ -26,7 +26,7 @@ const PORT = Number(process.env.PORT || 8080);
 function parseArgs(argv) {
   const out = {
     verb: null, file: null, edit: null, run: null,
-    renderer: null, user: null, config: null,
+    renderer: null, user: null, config: null, mem: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -79,6 +79,15 @@ function parseArgs(argv) {
     }
     if (a.startsWith("--renderer=")) {
       out.renderer = a.slice(a.indexOf("=") + 1);
+      continue;
+    }
+    if (a === "--mem") {
+      out.mem = argv[i + 1] ?? null;
+      if (out.mem) i++;
+      continue;
+    }
+    if (a.startsWith("--mem=")) {
+      out.mem = a.slice(a.indexOf("=") + 1);
       continue;
     }
     // Argument positionnel = le fichier (run= ou edit= selon le contexte)
@@ -172,6 +181,7 @@ export function launchUrl(argv) {
   if (target) query.set(runMode ? "run" : "edit", toUrlPath(target));
   if (args.user) query.set("user", args.user);
   if (args.config) query.set("config", args.config);
+  if (args.mem) query.set("mem", args.mem);
   // Lance via STAS.bat (--web) : le renderer par defaut est pixel, le plus
   // fidele a l'affichage STOS original ; --renderer= garde la priorite.
   query.set("renderer", args.renderer ?? "pixel");

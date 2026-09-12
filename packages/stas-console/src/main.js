@@ -17,6 +17,9 @@
  *    resize=follow   le buffer suit la taille du terminal (ignoré si
  *                    screen= est fixé).
  *    user=nom        nom d'utilisateur (dummy, réservé Volt.A).
+ *    mem=compatible  modèle mémoire des écrans : "compatible" (format Atari
+ *                    ST, plans entrelacés, défaut) ou "native" (1 octet/pixel).
+ *                    Aussi disponible en ligne de commande : --mem=…
  *
  *  Sans --config= : un fichier <même-nom>.ini à côté du .bas est chargé
  *  automatiquement s'il existe (config par démo, comme ?config= côté web).
@@ -56,6 +59,7 @@ function parseArgv(argv) {
   let editFlag = false; // --edit sans valeur : s'applique au fichier positionnel
   let config = null;
   let user = null;
+  let mem = null;
   let skipNext = false;
 
   for (let i = 0; i < argv.length; i++) {
@@ -98,6 +102,15 @@ function parseArgv(argv) {
       config = a.slice("--config=".length);
       continue;
     }
+    if (a === "--mem") {
+      mem = argv[i + 1] ?? null;
+      if (mem) { skipNext = true; }
+      continue;
+    }
+    if (a.startsWith("--mem=")) {
+      mem = a.slice("--mem=".length);
+      continue;
+    }
     if (a.startsWith("--")) {
       console.error(`[stas] option inconnue : ${a}`);
       continue;
@@ -111,7 +124,7 @@ function parseArgv(argv) {
     file = null;
   }
 
-  return { file, editFile, config, user };
+  return { file, editFile, config, user, mem };
 }
 
 /** Charge l'INI : --config= sinon <même-nom>.ini à côté du .bas. */
@@ -133,10 +146,18 @@ function loadConfig(configPath, basFile) {
 }
 
 export async function main(argv) {
-  const { file, editFile, config, user: cliUser } = parseArgv(argv);
+  const { file, editFile, config, user: cliUser, mem: cliMem } = parseArgv(argv);
   const basFile = file || editFile;
   const cfg = loadConfig(config, basFile);
   const user = cliUser || cfg.user || "user";
+
+  // Mode mémoire des écrans : "compatible" (format Atari ST, défaut) ou
+  // "native" (un octet par pixel). Voir packages/stas-core/src/memory.js.
+  const memRaw = cliMem || cfg.mem || "compatible";
+  if (memRaw !== "compatible" && memRaw !== "native") {
+    console.warn(`[stas] mem=${memRaw} ignore (compatible ou native)`);
+  }
+  const memMode = memRaw === "native" ? "native" : "compatible";
 
   // --- zone de rendu : screen= (fixe) sinon taille du terminal ----------
   let width = fitCols();
@@ -169,7 +190,7 @@ export async function main(argv) {
   }
 
   const langue = machineLangue();
-  const stas = new Stas({ width, height, langue });
+  const stas = new Stas({ width, height, langue, memMode });
   if (fixed) stas.io.lockTextRes = true; // zone fixe : MODE ne la defait pas
 
   // Connecteur stockage — mockup local du ConnectorStas d'AWI (phase 3).

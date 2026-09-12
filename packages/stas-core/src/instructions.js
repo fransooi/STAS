@@ -19,6 +19,7 @@ import {
 } from "./values.js";
 import { detokenize } from "./program.js";
 import { PixelScreen } from "./pixel-screen.js";
+import { bankBase } from "./memory.js";
 
 // --- petits combinateurs ---------------------------------------------------
 const num1 = (it) => it.toNum(it.args(1, 1)[0]);
@@ -241,6 +242,7 @@ function doReserve(it) {
   const kinds = [
     [SUB.AS_SCREEN, "screen"], [SUB.AS_WORK, "work"],
     [SUB.AS_DATA, "data"], [SUB.AS_DATASCREEN, "datascreen"],
+    [SUB.ASSET, "set"],
   ];
   let kind = null;
   if (t && t.code === T.ETENDU) {
@@ -252,8 +254,216 @@ function doReserve(it) {
   const n = it.toInt(it.evalExpr());
   if (n < 0 || n > 15) it.err(ERR.FON_CALL);
   if (n === 15) it.err(ERR.BANK15_MENU);   // banque 15 = menus (STOS)
-  if (it.eatRaw(",")) it.toInt(it.evalExpr()); // taille (work/data) : symbolique
-  it.io.banks.set(n, kind);
+  if (it.io.banks.has(n)) it.err(ERR.BANK_RES); // 41 : déjà réservée
+  let size;
+  if (kind === "screen" || kind === "datascreen") {
+    size = 0x8000;                              // écran : toujours 32 Ko
+    if (it.eatRaw(",")) it.toInt(it.evalExpr()); // longueur ignorée (STOS)
+  } else {
+    size = it.eatRaw(",") ? it.toInt(it.evalExpr()) : 256;
+    if (size <= 0) size = 256;
+    size = Math.ceil(size / 256) * 256;          // arrondi à 256 octets
+  }
+  it.io.banks.set(n, { kind, size, data: new Uint8Array(size) });
+}
+
+// --- mémoire : PEEK/POKE & co (adresses encodées, cf. memory.js) -------------
+
+/** Évalue une adresse 32 bits (entier non signé). */
+const memAddr = (it) => it.toInt(it.evalExpr()) >>> 0;
+
+function evenAddr(it, a) {
+  if (a & 1) it.err(ERR.ADDR_ERROR); // 32 : adresse impaire interdite
+}
+
+function doPoke(it) {
+  const a = memAddr(it);
+  it.expectRaw(",");
+  it.io.mem.writeByte(a, it.toInt(it.evalExpr()));
+  it.memSync(a, a);
+}
+
+function doDoke(it) {
+  const a = memAddr(it);
+  evenAddr(it, a);
+  it.expectRaw(",");
+  const v = it.toInt(it.evalExpr()) & 0xffff;
+  it.io.mem.writeByte(a, (v >> 8) & 0xff);
+  it.io.mem.writeByte(a + 1, v & 0xff);
+  it.memSync(a, a + 1);
+}
+
+function doLoke(it) {
+  const a = memAddr(it);
+  evenAddr(it, a);
+  it.expectRaw(",");
+  const v = it.toInt(it.evalExpr()) >>> 0;
+  for (let i = 0; i < 4; i++) it.io.mem.writeByte(a + i, (v >>> (24 - 8 * i)) & 0xff);
+  it.memSync(a, a + 3);
+}
+
+function funcPeek(it) {
+  return INT(it.io.mem.readByte(memAddr(it)));
+}
+
+function funcDeek(it) {
+  const a = memAddr(it);
+  evenAddr(it, a);
+  const v = (it.io.mem.readByte(a) << 8) | it.io.mem.readByte(a + 1);
+  return INT(v & 0xffff);
+}
+
+function funcLeek(it) {
+  const a = memAddr(it);
+  evenAddr(it, a);
+  let v = 0;
+  for (let i = 0; i < 4; i++) v = (v * 256 + it.io.mem.readByte(a + i)) >>> 0;
+  return INT(v | 0); // signé : bit 31 -> négatif (comme le STOS)
+}
+
+function doCopy(it) {
+  const start = memAddr(it);
+  it.expectRaw(",");
+  const finish = memAddr(it);
+  if (!it.eat(T.TO)) it.err(ERR.SYNTAX);
+  const dest = memAddr(it);
+  const n = finish - start;
+  if (n < 0) return;
+  const tmp = new Uint8Array(n + 1);
+  for (let i = 0; i <= n; i++) tmp[i] = it.io.mem.readByte(start + i);
+  for (let i = 0; i <= n; i++) it.io.mem.writeByte(dest + i, tmp[i]);
+  it.memSync(dest, dest + n);
+}
+
+function doFill(it) {
+  const start = memAddr(it);
+  if (!it.eat(T.TO)) it.err(ERR.SYNTAX);
+  const finish = memAddr(it);
+  it.expectRaw(",");
+  const lw = it.toInt(it.evalExpr()) >>> 0;
+  const b = [(lw >>> 24) & 0xff, (lw >>> 16) & 0xff, (lw >>> 8) & 0xff, lw & 0xff];
+  for (let a = start; a <= finish; a++) it.io.mem.writeByte(a, b[(a - start) & 3]);
+  if (finish >= start) it.memSync(start, finish);
+}
+
+/** HUNT(start TO end, A$) — renvoie 0 ou l'adresse de la chaîne trouvée. */
+function funcHunt(it) {
+  if (!it.eatRaw("(")) it.err(ERR.SYNTAX);
+  const start = memAddr(it);
+  if (!it.eat(T.TO)) it.err(ERR.SYNTAX);
+  const end = memAddr(it);
+  it.expectRaw(",");
+  const needle = it.toStr(it.evalExpr());
+  it.expectRaw(")");
+  if (!needle.length || end < start) return INT(0);
+  let buf = "";
+  for (let a = start; a <= end; a++) buf += String.fromCharCode(it.io.mem.readByte(a));
+  const idx = buf.indexOf(needle);
+  return INT(idx < 0 ? 0 : start + idx);
+}
+
+function doErase(it) {
+  it.io.banks.delete(it.toInt(it.evalExpr()));
+}
+
+/** VARPTR(variable) — adresse mémoire de la variable (voir Interpreter). */
+function funcVarptr(it) {
+  if (!it.eatRaw("(")) it.err(ERR.SYNTAX);
+  const lv = it.parseLvalue();
+  if (lv.dims) it.err(ERR.FON_CALL); // tableaux : non supportés (V1)
+  it.expectRaw(")");
+  return INT(it.varptr(lv.name));
+}
+
+/** BCOPY source TO dest — copie le contenu d'une banque dans une autre. */
+function doBcopy(it) {
+  const src = it.toInt(it.evalExpr());
+  if (!it.eat(T.TO)) it.err(ERR.SYNTAX);
+  const dst = it.toInt(it.evalExpr());
+  const s = it.io.banks.get(src);
+  const d = it.io.banks.get(dst);
+  if (!s || !d) it.err(ERR.BANK_NOT_RES);
+  d.data.set(s.data.subarray(0, Math.min(s.size, d.size)));
+}
+
+/** BSAVE file$,start TO end — écrit un bloc mémoire (via le connecteur). */
+async function doBsave(it) {
+  const path = it.toStr(it.evalExpr());
+  it.expectRaw(",");
+  const start = memAddr(it);
+  if (!it.eat(T.TO)) it.err(ERR.SYNTAX);
+  const end = memAddr(it);
+  if (!it.io.sendCommand) it.err(ERR.NOT_IMPL);
+  const data = [];
+  for (let a = start; a <= end; a++) data.push(it.io.mem.readByte(a));
+  const ans = await it.io.sendCommand("stas:bsave", { path, data });
+  if (!ans || !ans.success) it.err(ans?.data?.stosCode ?? ERR.NOT_IMPL);
+}
+
+/** BLOAD file$[,dest] — lit un bloc mémoire ; dest = adresse ou banque 1-15. */
+async function doBload(it) {
+  const path = it.toStr(it.evalExpr());
+  let dest = null;
+  if (it.eatRaw(",")) dest = it.toInt(it.evalExpr());
+  if (!it.io.sendCommand) it.err(ERR.NOT_IMPL);
+  const ans = await it.io.sendCommand("stas:bload", { path });
+  if (!ans || !ans.success) it.err(ans?.data?.stosCode ?? ERR.FILE_NOT_FOUND);
+  const data = ans.data?.data ?? [];
+  if (dest != null && dest >= 1 && dest <= 15 && it.io.banks.has(dest)) {
+    const b = it.io.banks.get(dest);
+    for (let i = 0; i < data.length && i < b.size; i++) b.data[i] = data[i] & 0xff;
+    return;
+  }
+  const addr = dest != null ? dest : 0;
+  for (let i = 0; i < data.length; i++) it.io.mem.writeByte(addr + i, data[i]);
+  if (data.length) it.memSync(addr, addr + data.length - 1);
+}
+
+/** ACCLOAD file$ — accessoires : accepté sans effet (pas de multi-programme). */
+function doAccload(it) {
+  if (!it.atEos()) it.toStr(it.evalExpr());
+}
+
+// --- bits (BCHG/BCLR/BSET/BTST) et rotations (ROL/ROR) ------------------
+
+function bitIndex(it) {
+  it.expectRaw(",");
+  return it.toInt(it.evalExpr()) & 31;
+}
+
+function bitStore(it, lv, v) {
+  const val = INT(v | 0);
+  if (lv.dims) it.arraySet(lv.name, lv.dims, val);
+  else it.setVar(lv.name, val);
+}
+
+function doBitModify(it, op) {
+  const lv = it.parseLvalue();
+  const cur = lv.dims ? it.arrayGet(lv.name, lv.dims) : it.getVar(lv.name);
+  if (cur.t === T_STR) it.err(ERR.TYPE_MISMATCH);
+  const y = bitIndex(it);
+  let v = cur.v | 0;
+  if (op === "set") v |= 1 << y;
+  else if (op === "clr") v &= ~(1 << y);
+  else v ^= 1 << y;
+  bitStore(it, lv, v);
+}
+
+function funcBtst(it) {
+  const [a, b] = it.args(2, 2);
+  return INT((it.toInt(a) >>> (it.toInt(b) & 31)) & 1);
+}
+
+function doRotate(it, left) {
+  const lv = it.parseLvalue();
+  const cur = lv.dims ? it.arrayGet(lv.name, lv.dims) : it.getVar(lv.name);
+  if (cur.t === T_STR) it.err(ERR.TYPE_MISMATCH);
+  it.expectRaw(",");
+  const y = it.toInt(it.evalExpr()) & 31;
+  const v = cur.v >>> 0;
+  const z = (32 - y) & 31;
+  const r = left ? ((v << y) | (v >>> z)) >>> 0 : ((v >>> y) | (v << z)) >>> 0;
+  bitStore(it, lv, r);
 }
 
 function doIncDec(it, sign) {
@@ -656,6 +866,9 @@ export const INSTRUCTIONS = new Map([
   [T.CLEFT, (it) => it.buffer.moveCursor(-1, 0)],
   [T.CRIGHT, (it) => it.buffer.moveCursor(1, 0)],
   [T.CLS, doCls],
+  [T.POKE, doPoke],
+  [T.DOKE, doDoke],
+  [T.LOKE, doLoke],
   [T.INC, (it) => doIncDec(it, 1)],
   [T.DEC, (it) => doIncDec(it, -1)],
   [T.MODE, doMode],
@@ -868,6 +1081,19 @@ export const EXT_INSTRUCTIONS = new Map([
   [SUB.FIX, doFix],
   [SUB.SORT, doSort],
   [SUB.USING, (it) => printUsing(it)],
+  [SUB.COPY, doCopy],
+  [SUB.FILL, doFill],
+  [SUB.ERASE, doErase],
+  [SUB.BCOPY, doBcopy],
+  [SUB.BLOAD, doBload],
+  [SUB.BSAVE, doBsave],
+  [SUB.ACCLOAD, doAccload],
+  [SUB.ACCNEW, (it) => {}],
+  [SUB.BCHG, (it) => doBitModify(it, "chg")],
+  [SUB.BCLR, (it) => doBitModify(it, "clr")],
+  [SUB.BSET, (it) => doBitModify(it, "set")],
+  [SUB.ROL, (it) => doRotate(it, true)],
+  [SUB.ROR, (it) => doRotate(it, false)],
   [SUB.RESERVE, doReserve],
   [SUB.INPUT, doInput],
   [SUB.LINEINPUT, doLineInput],
@@ -924,13 +1150,16 @@ export const EXT_DIRECT_ONLY = new Set([
 
 export const FUNC_TABLE = new Map([
   [T.START, (it) => {
-    // START(n) : adresse fictive de la banque n (32000 octets par banque,
-    // base $60000 comme sur ST — seule l'existence compte en ASCII)
+    // START(n) : adresse de base de la banque n (champ banque du schéma
+    // d'adressage — voir memory.js). Erreur 44 si la banque n'est pas réservée.
     const n = it.toInt(it.args(1, 1)[0]);
     if (n < 0 || n > 15) it.err(ERR.FON_CALL);
     if (!it.io.banks || !it.io.banks.has(n)) it.err(ERR.BANK_NOT_RES); // 44
-    return INT(0x60000 + n * 0x8000);
+    return INT(bankBase(n));
   }],
+  [T.PEEK, funcPeek],
+  [T.DEEK, funcDeek],
+  [T.LEEK, funcLeek],
   [T.ABS, (it) => {
     const v = it.args(1, 1)[0];
     const x = it.toNum(v);
@@ -987,7 +1216,13 @@ export const FUNC_TABLE = new Map([
     return STR(s.slice(0, n));
   }],
   [T.LEN, (it) => INT(str1(it).length)],
-  [T.LENGTH, (it) => INT(str1(it).length)],
+  [T.LENGTH, (it) => {
+    // LENGTH(b) : longueur d'une banque (0 si elle n'existe pas). LEN(a$)
+    // reste la longueur de chaîne.
+    const n = it.toInt(it.args(1, 1)[0]);
+    const b = it.io.banks.get(n);
+    return INT(b ? b.size : 0);
+  }],
   [T.PI, () => FLOAT(Math.PI)],
   [T.TIMER, (it) => INT(Math.floor((it.now() - it.t0) / 20))], // compteur 50 Hz
   [T.TIMES, (it) => it.vars.get("__time$") ?? STR(hostTime(it))],
@@ -1045,6 +1280,8 @@ export const EXTFUNC_TABLE = new Map([
     it.expectRaw(")");
     return INT(it.matchArray(lv.name, needle));
   }],
+  [FSUB.HUNT, funcHunt],
+  [FSUB.BTST, funcBtst],
   [FSUB.MAX, (it) => {
     const [a, b] = it.args(2, 2);
     const x = it.toNum(a), y = it.toNum(b);
@@ -1091,4 +1328,6 @@ export const EXTFUNC_TABLE = new Map([
   [FSUB.RAD, (it) => FLOAT((num1(it) * Math.PI) / 180)],
   [FSUB.ERRN, (it) => INT(it.errn)],
   [FSUB.ERRL, (it) => INT(it.errl)],
+  [FSUB.VARPTR, funcVarptr],
+  [FSUB.ACCNB, () => INT(0)],
 ]);
