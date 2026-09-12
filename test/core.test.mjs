@@ -1273,3 +1273,74 @@ test("INPUT$ : relu à chaque itération", async () => {
   assert.deepEqual(out(stas.buffer.toText()), ["XXX"]);
   assert.equal(calls, 3);
 });
+
+// ---------------------------------------------------------------------------
+//  §3.1 — ON ERROR GOTO / RESUME / ERRN / ERRL / BREAK ON|OFF
+// ---------------------------------------------------------------------------
+
+test("ON ERROR GOTO : capture, ERRN/ERRL et RESUME NEXT", async () => {
+  assert.deepEqual(await runOut([
+    "10 on error goto 100",
+    "20 print 1/0",
+    '30 print "apres"',
+    "40 end",
+    '100 print "erreur";errn;"ligne";errl',
+    "110 resume next",
+  ]), ["erreur46ligne20", "apres"]);
+});
+
+test("RESUME : rejoue l'instruction fautive", async () => {
+  assert.deepEqual(await runOut([
+    "10 on error goto 100",
+    "20 a=0:b=5",
+    "30 print b/a",
+    '40 print "fini"',
+    "50 end",
+    "100 a=1",
+    "110 resume",
+  ]), ["5", "fini"]);
+});
+
+test("RESUME n : repart d'une ligne", async () => {
+  assert.deepEqual(await runOut([
+    "10 on error goto 100",
+    "20 print 1/0",
+    '30 print "jamais"',
+    '40 print "cible"',
+    "50 end",
+    "100 resume 40",
+  ]), ["cible"]);
+});
+
+test("RESUME sans erreur = erreur 38", async () => {
+  await expectError(["10 resume"], ERR.RES_NO_ERR);
+});
+
+test("erreur dans le gestionnaire : non rattrapée", async () => {
+  await expectError([
+    "10 on error goto 100",
+    "20 print 1/0",
+    "100 print 1/0",
+  ], ERR.DIV_ZERO);
+});
+
+test("ON ERROR GOTO 0 : désactive le gestionnaire", async () => {
+  await expectError([
+    "10 on error goto 100",
+    "20 on error goto 0",
+    "30 print 1/0",
+    '100 print "handler"',
+  ], ERR.DIV_ZERO);
+});
+
+test("BREAK ON/OFF : pilote l'interruption Ctrl-C", async () => {
+  const stas = new Stas({});
+  await stas.execDirect("break off");
+  assert.equal(stas.interp.breakEnabled, false);
+  stas.requestBreak();
+  assert.equal(stas.interp.breakRequested, false);
+  await stas.execDirect("break on");
+  assert.equal(stas.interp.breakEnabled, true);
+  stas.requestBreak();
+  assert.equal(stas.interp.breakRequested, true);
+});

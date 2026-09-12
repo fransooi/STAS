@@ -160,8 +160,9 @@ test/               node --test
 
 **Structures**: `GOTO`, `GOSUB`/`RETURN`/`POP`, `FOR`/`TO`/`STEP`/`NEXT`,
 `WHILE`/`WEND`, `REPEAT`/`UNTIL`, `IF`/`THEN`/`ELSE` (one-line form,
-`IF x THEN 100` accepted), `ON n GOTO|GOSUB`, `DIM`, `DATA`/`READ`/`RESTORE [n]`,
-`REM` / `'`, `:` to chain statements.
+`IF x THEN 100` accepted), `ON n GOTO|GOSUB`, `ON ERROR GOTO`/`RESUME`/
+`RESUME NEXT`, `DIM`, `DATA`/`READ`/`RESTORE [n]`, `REM` / `'`, `:` to chain
+statements.
 
 **Display**: `PRINT` / `?` (`;` no newline, `,` 14-column tabs, `TAB(n)`),
 `CLS`, `LOCATE x,y` (0-based), `PEN n`, `PAPER n`, `HOME`,
@@ -180,7 +181,8 @@ characters without echo) and `USING` formatted output.
 
 **Arrays & system**: `MATCH` (closest match in a sorted 1-D array), `SORT a(0)`
 (sort a 1-D array), `SWAP x,y` (exchange two variables), `FREE`, `TIME$`,
-`DATE$`, `LANGUAGE`, `TIMER` (50 Hz counter), `TRUE`/`FALSE`.
+`DATE$`, `LANGUAGE`, `ERRN`/`ERRL` (last error), `TIMER` (50 Hz counter),
+`TRUE`/`FALSE`.
 
 **Direct commands**: `RUN [n]`, `LIST` (ranges: `LIST n`, `LIST n,m`,
 `LIST n-m`, `LIST n-`, `LIST -m`), `NEW`, `DEL`/`DELETE`, `SAVE`, `SAVE AS`,
@@ -236,8 +238,7 @@ form `DRAW "r10 d20"`), `BOX`, `BAR`, `RBOX`, `RBAR` (rounded corners),
 - `IF ... THEN ... ELSE` on a single line (no multi-line blocks)
 - a `DATA` containing a raw keyword (`data wend`) can confuse the structure
   scan — STOS stored DATA as raw text, to be revisited
-- no `DEF FN`, no `ON ERROR GOTO`, no sprite rotation
-  (STOS did not have it either!)
+- no `DEF FN`, no sprite rotation (STOS did not have it either!)
 - the detokenizer sometimes glues `T mod 3` into `Tmod` in LIST (cosmetic)
 
 The rest of the STOS vocabulary (sprites, music, windows, data banks...) is

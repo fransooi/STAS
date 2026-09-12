@@ -22,16 +22,16 @@ raises STOS error **20** (`Function not implemented`), per
 | Category | Count |
 | --- | ---: |
 | Distinct tokenized keyword forms | **341** |
-| Implemented (handler present) | **142** |
-| Tokenized, **not** implemented → error 20 | **199** |
+| Implemented (handler present) | **145** |
+| Tokenized, **not** implemented → error 20 | **196** |
 | Manual entries **not tokenized at all** | **2** |
 
-Of the 142 "implemented" forms, 7 are pure structural markers (`TO`, `STEP`,
-`THEN`, `NEXT`, `WEND`, `UNTIL`, `ELSE`), leaving **≈ 135 distinct STOS
+Of the 145 "implemented" forms, 7 are pure structural markers (`TO`, `STEP`,
+`THEN`, `NEXT`, `WEND`, `UNTIL`, `ELSE`), leaving **≈ 138 distinct STOS
 features that actually run today**.
 
-> Iteration 1 (§3.3 "cheap wins") landed: the count moved from 124 → **142**
-implemented (217 → 199 missing).
+> Iterations 1–2 landed: the count moved from 124 → **145** implemented
+> (217 → 196 missing).
 
 **The token table is *almost* complete:** only **`PACK`** and **`UNPACK`**
 (screen pack/unpack) from the reference card have no token. Everything else is
@@ -40,7 +40,7 @@ tables, not the tokenizer.
 
 ---
 
-## 2. Implemented today (142 forms)
+## 2. Implemented today (145 forms)
 
 **Control flow & structures**
 `GOTO`, `GOSUB`, `RETURN`, `POP`, `FOR…TO…STEP…NEXT`, `WHILE…WEND`,
@@ -73,6 +73,10 @@ printed precision of reals.
 `FLIP$`, `INPUT$(n)`, `USING format$;…` (fields `! # + - . ; ^`), `FREE`,
 `TIME$`, `DATE$` (readable and assignable), `LANGUAGE`.
 
+**Error handling**
+`ON ERROR GOTO line` (`0` disables), `RESUME`, `RESUME NEXT`, `RESUME n`,
+`ERRN`, `ERRL` (real values), `BREAK ON|OFF`.
+
 **Strings**
 `CHR$ ASC LEN LEFT$ RIGHT$ MID$ STR$ VAL SPACE$ STRING$ INSTR UPPER$ LOWER$
 HEX$ BIN$`.
@@ -85,16 +89,14 @@ HEX$ BIN$`.
 
 ---
 
-## 3. Remaining work (199 tokenized forms → error 20)
+## 3. Remaining work (196 tokenized forms → error 20)
 
 Grouped by subsystem, not by token table, so it maps to actual work items.
 
 ### 3.1 Error handling & language completeness
-- `ON ERROR GOTO line`, `RESUME`, `RESUME NEXT` *(and `RESUME n`)*
-- `DEF FN name(…)` / `FN name(…)`
-- `ERN`/`ERRL`: currently **stubs returning 0** (`instructions.js` L922-923)
-- `BREAK ON|OFF`: the token currently *raises* break error 17; the Ctrl-C
-  toggle of the manual is not implemented
+✅ **Done (iteration 2).** `ON ERROR GOTO`, `RESUME` / `RESUME NEXT` / `RESUME n`,
+real `ERRN`/`ERRL`, and `BREAK ON|OFF`.
+Still open: `DEF FN name(…)` / `FN name(…)`.
 
 ### 3.2 Memory / low-level layer
 - `PEEK`, `DEEK`, `LEEK`, `POKE`, `DOKE`, `LOKE`
@@ -227,8 +229,8 @@ Ranked by value ÷ effort, assuming the console/canvas target:
 1. ✅ **Done (iteration 1)** — cheap language completeness: `HSIN HCOS HTAN
    ASIN ACOS`, `MATCH`, `FLIP$`, `INPUT$`, `SWAP`, `FIX`, `USING`, `FREE`,
    `TIME$`, `DATE$`, `LANGUAGE`, `SORT`, `DEG`/`RAD` dual.
-2. **Error handling** — `ON ERROR GOTO` + `RESUME*`, then make `ERRN`/`ERRL`
-   real; `BREAK ON|OFF` toggle.
+2. ✅ **Done (iteration 2)** — error handling: `ON ERROR GOTO` + `RESUME*`,
+   real `ERRN`/`ERRL`, `BREAK ON|OFF` toggle. (`DEF FN` still open.)
 3. **Text/console fidelity** — `SCRN`, `XCURS`/`YCURS`, `*TEXT`/`*GRAPHIC`
    conversions, `INVERSE`, `SHADE`, `UNDER`, `SQUARE`.
 4. **Graphics V2 primitives & styles** — `ARC`/`EARC`/`EPIE`/`PIE`,

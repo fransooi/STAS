@@ -874,7 +874,13 @@ export const EXT_INSTRUCTIONS = new Map([
   [SUB.DATA, (it) => it.skipStatement()],
   [SUB.END, (it) => { it.running = false; it.pc.ti = it.tokens.length; }],
   [SUB.STOP, (it) => { throw new StosError(ERR.STOP, it.currentLine, it.langue); }],
-  [SUB.BREAK, (it) => { throw new StosError(ERR.BREAK, it.currentLine, it.langue); }],
+  [SUB.BREAK, (it) => {
+    // BREAK ON|OFF : autorise ou non l'interruption Ctrl-C (le refus
+    // est fidèle au STOS — Ctrl-C n'est alors plus souverain).
+    const on = it.eat(T.ON);
+    const off = on ? false : it.eat(T.OFF);
+    it.breakEnabled = on ? true : off ? false : true;
+  }],
   [SUB.ERROR, (it) => {
     let n = it.toInt(it.evalExpr());
     if (n < 0 || n > 87) n = ERR.FON_CALL;
@@ -1083,6 +1089,6 @@ export const EXTFUNC_TABLE = new Map([
   // l'instruction seule, cf. Interpreter.execStatement).
   [FSUB.DEG, (it) => FLOAT((num1(it) * 180) / Math.PI)],
   [FSUB.RAD, (it) => FLOAT((num1(it) * Math.PI) / 180)],
-  [FSUB.ERRN, () => INT(0)],
-  [FSUB.ERRL, () => INT(0)],
+  [FSUB.ERRN, (it) => INT(it.errn)],
+  [FSUB.ERRL, (it) => INT(it.errl)],
 ]);

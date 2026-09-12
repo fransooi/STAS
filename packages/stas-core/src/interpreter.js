@@ -84,6 +84,14 @@ export class Interpreter {
     this.degMode = false;       // false = radians (défaut STOS)
     this.fixPrecision = null;   // FIX(n) : précision d'affichage des réels (null = %g)
     this._inputTemps = new Map(); // INPUT$(n) résolus pour l'instruction courante
+    this.errorHandler = null;   // ON ERROR GOTO : numéro de ligne, ou null
+    this.errn = 0;              // ERRN : numéro de la dernière erreur
+    this.errl = 0;              // ERRL : ligne de la dernière erreur
+    this.handlingError = false; // vrai pendant l'exécution du gestionnaire
+    this.resumePc = null;       // RESUME : ré-exécute l'instruction fautive
+    this.resumeNextPc = null;   // RESUME NEXT : instruction suivante
+    this._stmtStart = { li: 0, ti: 0 }; // début de l'instruction courante
+    this.breakEnabled = true;   // BREAK ON|OFF
     this.running = false;
     this.directMode = false;
     this.breakRequested = false;
@@ -113,6 +121,7 @@ export class Interpreter {
   rnd() { return this.io.rnd ? this.io.rnd() : Math.random(); }
   inkey() { return this.io.inkey ? this.io.inkey() : ""; }
   requestBreak() {
+    if (!this.breakEnabled) return; // BREAK OFF : Ctrl-C ignoré
     this.breakRequested = true;
     // réveille une boucle en pause pour qu'elle traite l'interruption
     const r = this._resumeResolve;
@@ -320,7 +329,19 @@ export class Interpreter {
         this.err(ERR.BREAK);
       }
       this.currentLine = this.program.lines[this.pc.li].num;
-      await this.execLine();
+      let jumped = false;
+      try {
+        await this.execLine();
+      } catch (e) {
+        if (!(e instanceof StosError)) throw e;
+        this._handleError(e); // peut relancer l'erreur
+        jumped = true;
+      }
+      if (jumped) continue; // pc déjà positionné sur le gestionnaire
+      // gestionnaire terminé sans RESUME : l'erreur redevient trappable
+      if (this.handlingError && this.pc.li !== this._handlerLi) {
+        this.handlingError = false;
+      }
       this.pc.li++;
       this.pc.ti = 0;
     }
@@ -346,6 +367,7 @@ export class Interpreter {
     for (;;) {
       while (this.eatRaw(":")) {}
       if (this.pc.ti >= this.tokens.length) return;
+      this._stmtStart = { li: this.pc.li, ti: this.pc.ti };
       await this.execStatement();
       if (!this.running) return;
       // pause : fige l'exécution jusqu'à resume() / stop
@@ -413,6 +435,11 @@ export class Interpreter {
         return this.doUntil();
       case T.ON:
         return this.doOn();
+      case T.ON_ERROR:
+        return this.doOnError();
+      case T.RESUME:
+      case T.RESUME_NEXT:
+        return this.doResume(tok.code === T.RESUME_NEXT);
       case T.RESTORE:
         return this.doRestore();
       case T.READ:
@@ -513,6 +540,77 @@ export class Interpreter {
       if (isGoto) this.doGotoTo(list[n - 1]);
       else this.doGosubTo(list[n - 1]);
     }
+  }
+
+  /** ON ERROR GOTO ligne — installe le gestionnaire (0 ou rien = désactive). */
+  doOnError() {
+    this.eat(T.GOTO);
+    if (this.atEos()) {
+      this.errorHandler = null;
+      return;
+    }
+    const n = this.toInt(this.evalExpr());
+    this.errorHandler = n === 0 ? null : n;
+    if (this.errorHandler !== null) this.handlingError = false;
+  }
+
+  /**
+   * RESUME / RESUME NEXT / RESUME n — reprise après une erreur trappée :
+   * RESUME rejoue l'instruction fautive, RESUME NEXT passe à la suivante,
+   * RESUME n repart de la ligne n.
+   */
+  doResume(isNext) {
+    if (!this.resumePc) this.err(ERR.RES_NO_ERR); // 38
+    this.handlingError = false;
+    if (isNext) {
+      this.pc.li = this.resumeNextPc.li;
+      this.pc.ti = this.resumeNextPc.ti;
+      return;
+    }
+    if (this.atEos()) {
+      this.pc.li = this.resumePc.li;
+      this.pc.ti = this.resumePc.ti;
+      return;
+    }
+    const n = this.toInt(this.evalExpr());
+    const idx = this.program.indexOf(n);
+    if (idx < 0) this.err(ERR.UNDEF_LINE);
+    this.pc.li = idx;
+    this.pc.ti = 0;
+  }
+
+  /**
+   * Erreur rattrapée par ON ERROR GOTO : mémorise ERRN/ERRL, calcule les
+   * points de reprise et saute au gestionnaire. Relance l'erreur s'il n'y a
+   * pas de gestionnaire, si l'on est déjà dedans, ou pour un BREAK (Ctrl-C
+   * toujours souverain).
+   */
+  _handleError(e) {
+    if (!this.errorHandler || this.handlingError || e.code === ERR.BREAK) {
+      throw e;
+    }
+    const idx = this.program.indexOf(this.errorHandler);
+    if (idx < 0) throw e;
+    this.errn = e.code;
+    this.errl = e.line;
+    this.resumePc = { li: this._stmtStart.li, ti: this._stmtStart.ti };
+    this.resumeNextPc = this._nextStatement(this._stmtStart);
+    this.handlingError = true;
+    this._handlerLi = idx;
+    this.pc.li = idx;
+    this.pc.ti = 0;
+  }
+
+  /** Position de l'instruction suivant celle qui commence en {li, ti}. */
+  _nextStatement(s) {
+    const line = this.program.lines[s.li];
+    if (line) {
+      const toks = line.tokens;
+      for (let i = s.ti; i < toks.length; i++) {
+        if (toks[i].code === COLON) return { li: s.li, ti: i + 1 };
+      }
+    }
+    return { li: s.li + 1, ti: 0 };
   }
 
   async doFor() {

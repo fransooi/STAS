@@ -162,8 +162,9 @@ test/               node --test
 
 **Structures** : `GOTO`, `GOSUB`/`RETURN`/`POP`, `FOR`/`TO`/`STEP`/`NEXT`,
 `WHILE`/`WEND`, `REPEAT`/`UNTIL`, `IF`/`THEN`/`ELSE` (forme une-ligne,
-`IF x THEN 100` accepté), `ON n GOTO|GOSUB`, `DIM`, `DATA`/`READ`/`RESTORE [n]`,
-`REM` / `'`, `:` pour enchaîner.
+`IF x THEN 100` accepté), `ON n GOTO|GOSUB`, `ON ERROR GOTO`/`RESUME`/
+`RESUME NEXT`, `DIM`, `DATA`/`READ`/`RESTORE [n]`, `REM` / `'`, `:` pour
+enchaîner.
 
 **Affichage** : `PRINT` / `?` (`;` sans saut de ligne, `,` taquets de 14
 colonnes, `TAB(n)`), `CLS`, `LOCATE x,y` (0-based), `PEN n`, `PAPER n`, `HOME`,
@@ -183,8 +184,8 @@ caractères sans écho) et le formatage `USING`.
 
 **Tableaux & système** : `MATCH` (plus proche valeur dans un tableau trié 1-D),
 `SORT a(0)` (trie un tableau 1-D), `SWAP x,y` (échange deux variables),
-`FREE`, `TIME$`, `DATE$`, `LANGUAGE`, `TIMER` (compteur 50 Hz),
-`TRUE`/`FALSE`.
+`FREE`, `TIME$`, `DATE$`, `LANGUAGE`, `ERRN`/`ERRL` (dernière erreur),
+`TIMER` (compteur 50 Hz), `TRUE`/`FALSE`.
 
 **Commandes directes** : `RUN [n]`, `LIST` (bornes : `LIST n`, `LIST n,m`,
 `LIST n-m`, `LIST n-`, `LIST -m`), `NEW`, `DEL`/`DELETE`, `SAVE`, `SAVE AS`,
@@ -241,8 +242,8 @@ affectation `LOGIC=`/`PHYSIC=`. `PLAY` est accepté mais silencieux ;
 - `IF ... THEN ... ELSE` sur une seule ligne (pas de blocs multi-lignes)
 - un `DATA` contenant un mot-clé brut (`data wend`) peut troubler le scan
   des structures — le STOS stockait les DATA en texte brut, à revoir
-- pas de `DEF FN`, pas de `ON ERROR GOTO`, pas de rotation de sprites
-  (le STOS n'en avait pas non plus !)
+- pas de `DEF FN`, pas de rotation de sprites (le STOS n'en avait pas non
+  plus !)
 - le détokeniseur colle parfois `T mod 3` en `Tmod` au LIST (cosmétique)
 
 Le reste du vocabulaire STOS (sprites, musique, fenêtres, banques de
