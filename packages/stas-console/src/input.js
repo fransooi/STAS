@@ -15,6 +15,7 @@ export class ConsoleInput {
     this.stas = stas;
     this.onDirty = null; // appelé après chaque frappe (rendu)
     this._pending = null; // { buf, echo, resolve }
+    this._charPending = null; // { buf, need, resolve } — INPUT$(n)
     this._keys = []; // file pour inkey$
     this._esc = 0; // machine à séquences d'échappement
     this._stdinBuf = "";
@@ -66,6 +67,41 @@ export class ConsoleInput {
     return k === undefined ? "" : k;
   }
 
+  /** INPUT$(n) — attend n caractères, sans écho (comme le STOS). */
+  inputChars(n) {
+    n = Math.max(0, Math.trunc(n));
+    if (n === 0) return Promise.resolve("");
+    // stdin pipé : puise d'abord dans ce qui est déjà arrivé
+    if (!this._isTTY && this._stdinBuf.length) {
+      const s = this._stdinBuf.slice(0, n);
+      this._stdinBuf = this._stdinBuf.slice(s.length);
+      if (s.length === n) return Promise.resolve(s);
+      return new Promise((resolve) => {
+        this._charPending = { buf: s, need: n, resolve };
+      });
+    }
+    return new Promise((resolve) => {
+      this._charPending = { buf: "", need: n, resolve };
+    });
+  }
+
+  /** Un caractère pour INPUT$ (contrôles ignorés, pas d'écho). */
+  _charChar(ch) {
+    const p = this._charPending;
+    if (!p) return;
+    if (ch === "\x03") {
+      if (this.stas.interp.running) this.stas.requestBreak();
+      return;
+    }
+    if (ch < " ") return;
+    p.buf += ch;
+    if (p.buf.length >= p.need) {
+      this._charPending = null;
+      this.onDirty?.();
+      p.resolve(p.buf.slice(0, p.need));
+    }
+  }
+
   _onEof() {
     this._eof = true;
     // dernière ligne sans \n final
@@ -82,6 +118,14 @@ export class ConsoleInput {
 
   _onData(data) {
     if (!this._isTTY) {
+      // INPUT$ en cours : on puise les caractères bruts
+      if (this._charPending) {
+        for (const ch of data) {
+          if (!this._charPending) break;
+          this._charChar(ch);
+        }
+        return;
+      }
       // mode pipe : accumulation de lignes complètes
       this._stdinBuf += data;
       let i;
@@ -104,6 +148,10 @@ export class ConsoleInput {
       return;
     }
     for (const ch of data) {
+      if (this._charPending) {
+        this._charChar(ch);
+        continue;
+      }
       if (this._esc) {
         // avale les séquences flèches & co.
         if (this._esc === 1) this._esc = ch === "[" ? 2 : 0;

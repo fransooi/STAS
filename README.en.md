@@ -169,13 +169,18 @@ test/               node --test
 
 **Input**: `INPUT ["text";] v[,v2...]`, `LINE INPUT`, `INKEY$` (non-blocking).
 
-**Math functions**: `ABS INT SQR SGN SIN COS TAN ATN EXP LN LOG PI MIN MAX
-RND DEG RAD` — `LOG` is base 10 like STOS, `DEG`/`RAD` switch the
-trigonometric mode.
+**Math functions**: `ABS INT SQR SGN SIN COS TAN ATN ASIN ACOS HSIN HCOS HTAN
+EXP LN LOG PI MIN MAX RND` — `LOG` is base 10 like STOS. `FIX n` sets the
+printed precision of reals (1..15 decimals, ≥16 = normal, negative =
+exponential).
 
 **String functions**: `CHR$ ASC LEN LEFT$ RIGHT$ MID$ STR$ VAL SPACE$
-STRING$ INSTR UPPER$ LOWER$ HEX$ BIN$`, plus `TIMER` (50 Hz counter),
-`TRUE`/`FALSE`.
+STRING$ INSTR UPPER$ LOWER$ HEX$ BIN$ FLIP$`, plus `INPUT$(n)` (read n
+characters without echo) and `USING` formatted output.
+
+**Arrays & system**: `MATCH` (closest match in a sorted 1-D array), `SORT a(0)`
+(sort a 1-D array), `SWAP x,y` (exchange two variables), `FREE`, `TIME$`,
+`DATE$`, `LANGUAGE`, `TIMER` (50 Hz counter), `TRUE`/`FALSE`.
 
 **Direct commands**: `RUN [n]`, `LIST` (ranges: `LIST n`, `LIST n,m`,
 `LIST n-m`, `LIST n-`, `LIST -m`), `NEW`, `DEL`/`DELETE`, `SAVE`, `SAVE AS`,
@@ -213,6 +218,9 @@ form `DRAW "r10 d20"`), `BOX`, `BAR`, `RBOX`, `RBAR` (rounded corners),
 ### Semantic decisions (V1)
 
 - `TRUE` is **1**, comparisons return 0/1
+- `DEG`/`RAD` are both an instruction and a function, like STOS: used alone
+  they switch the trigonometric mode; `DEG(x)`/`RAD(x)` convert the angle
+  (radians ↔ degrees)
 - `^` is **left-associative** — `2^3^2 = 64`, a STOS quirk kept as is
 - `AND OR XOR` = bitwise on signed 32 bits; `NOT` is boolean
 - `7/2 → 3.5` but `8/2 → 4`: integer division when exact

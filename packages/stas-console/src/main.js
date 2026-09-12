@@ -195,6 +195,7 @@ export async function main(argv) {
 
   // branchement des traps STAS sur le terminal
   stas.io.readLine = (echo) => input.readLine(echo);
+  stas.io.inputChars = (n) => input.inputChars(n);
   stas.io.inkey = () => input.inkey();
   stas.io.flush = () => renderer.render();
   stas.io.tick = async () => renderer.render();

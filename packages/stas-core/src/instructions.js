@@ -15,7 +15,7 @@ import { StosError, ERR } from "./errors.js";
 import {
   INT, FLOAT, STR,
   T_INT, T_FLOAT, T_STR,
-  fmtNum, fmtValue,
+  fmtNum,
 } from "./values.js";
 import { detokenize } from "./program.js";
 import { PixelScreen } from "./pixel-screen.js";
@@ -35,6 +35,13 @@ const NUM_RE = /^[+-]?(\d+\.?\d*|\.\d+)$/;
 // ===========================================================================
 
 async function doPrint(it) {
+  // PRINT USING format$;liste — contrôle fin du formatage
+  const u = it.peek();
+  if (u && u.code === T.ETENDU && u.sub === SUB.USING) {
+    it.next();
+    printUsing(it);
+    return;
+  }
   let newline = true;
   while (!it.atEos()) {
     if (it.eatRaw(";")) {
@@ -54,10 +61,88 @@ async function doPrint(it) {
       newline = false;
       continue;
     }
-    it.buffer.write(fmtValue(it.evalExpr()));
+    it.buffer.write(it.formatValue(it.evalExpr()));
     newline = true;
   }
   if (newline) it.buffer.write("\n");
+}
+
+// --- USING : formatage fin (STOS : ! # + - . ; ^) -------------------------
+
+/** PRINT USING format$;v1[,v2…] / instruction USING équivalente. */
+function printUsing(it) {
+  const fmt = it.toStr(it.evalExpr());
+  it.expectRaw(";");
+  const vals = [it.evalExpr()];
+  while (it.eatRaw(",")) vals.push(it.evalExpr());
+  it.buffer.write(formatUsing(it, fmt, vals));
+  it.buffer.write("\n");
+}
+
+const USING_FIELD = "#+-.;^";
+
+/**
+ * Applique un format USING. Un champ commence à un run de "!" (chaîne) ou
+ * de caractères "#+-.;^" (nombre) ; tout le reste est recopié littéralement.
+ * Un champ par valeur, dans l'ordre.
+ */
+function formatUsing(it, fmt, vals) {
+  let out = "";
+  let vi = 0;
+  for (let i = 0; i < fmt.length; ) {
+    const ch = fmt[i];
+    if (ch === "!") {
+      let j = i;
+      while (j < fmt.length && fmt[j] === "!") j++;
+      const width = j - i;
+      const s = vi < vals.length ? it.toStr(vals[vi++]) : "";
+      out += s.length >= width ? s.slice(0, width) : s.padEnd(width, " ");
+      i = j;
+    } else if (USING_FIELD.includes(ch)) {
+      let j = i;
+      while (j < fmt.length && USING_FIELD.includes(fmt[j])) j++;
+      const field = fmt.slice(i, j);
+      const v = vi < vals.length ? it.toNum(vals[vi++]) : 0;
+      out += formatUsingNum(field, v);
+      i = j;
+    } else {
+      out += ch;
+      i++;
+    }
+  }
+  return out;
+}
+
+function formatUsingNum(field, n) {
+  const hasPlus = field.includes("+");
+  const hasMinus = field.includes("-");
+  const centre = field.includes(";");
+  const exp = field.includes("^");
+  const dot = field.indexOf(".");
+  const before = (dot >= 0 ? field.slice(0, dot) : field).replace(/[^#]/g, "").length;
+  const after = dot >= 0 ? field.slice(dot + 1).replace(/[^#]/g, "").length : 0;
+  let body;
+  if (exp) {
+    body = n.toExponential(Math.max(0, dot >= 0 ? after : before));
+    body = body.replace("e", "E").replace(/E\+?(-?)0*(\d)/, "E$1$2");
+  } else {
+    body = n.toFixed(after);
+  }
+  if (n >= 0) {
+    if (hasPlus) body = "+" + body;
+    else if (hasMinus) body = " " + body;
+  }
+  const width = field.length;
+  if (body.length < width) {
+    const pad = width - body.length;
+    if (centre) {
+      const left = Math.floor(pad / 2);
+      body = " ".repeat(left) + body + " ".repeat(pad - left);
+    } else {
+      body = " ".repeat(pad) + body;
+    }
+  }
+  return body;
 }
 
 async function doLocate(it) {
@@ -104,6 +189,50 @@ function doPlay(it) {
 /** FLASH/KEY/CLICK ON|OFF, HIDE, SHOW — décor écran/clavier/souris : no-op. */
 function doFlag(it) {
   it.eat(T.ON) || it.eat(T.OFF);
+}
+
+/** FIX(n) — règle la précision d'affichage des réels (1..15, ≥16, <0 expo). */
+function doFix(it) {
+  it.fixPrecision = it.toInt(it.evalExpr());
+}
+
+/**
+ * SWAP x,y / SWAP(x,y) — échange le contenu de deux variables (ou éléments
+ * de tableau) du même type, comme le SWAP du STOS.
+ */
+function doSwap(it) {
+  const paren = it.eatRaw("(");
+  const a = it.parseLvalue();
+  if (!it.eatRaw(",")) it.err(ERR.SYNTAX);
+  const b = it.parseLvalue();
+  if (paren) it.expectRaw(")");
+  const va = a.dims ? it.arrayGet(a.name, a.dims) : it.getVar(a.name);
+  const vb = b.dims ? it.arrayGet(b.name, b.dims) : it.getVar(b.name);
+  if ((va.t === T_STR) !== (vb.t === T_STR)) it.err(ERR.TYPE_MISMATCH);
+  if (a.dims) it.arraySet(a.name, a.dims, vb);
+  else it.setVar(a.name, vb);
+  if (b.dims) it.arraySet(b.name, b.dims, va);
+  else it.setVar(b.name, va);
+}
+
+/** SORT a$(0) — trie le tableau 1-D par ordre croissant (nombres ou chaînes). */
+function doSort(it) {
+  const lv = it.parseLvalue();
+  it.sortArray(lv.name);
+}
+
+const pad2 = (n) => String(n).padStart(2, "0");
+
+/** TIME$ — "HH:MM:SS" (horloge hôte), sauf si la variable a été assignée. */
+function hostTime(it) {
+  const d = new Date(it.now());
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+}
+
+/** DATE$ — "DD/MM/YYYY" (horloge hôte), sauf si la variable a été assignée. */
+function hostDate(it) {
+  const d = new Date(it.now());
+  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`;
 }
 
 /** RESERVE AS SCREEN|WORK|DATA|DATASCREEN n[,taille] — banques mémoire. */
@@ -533,6 +662,7 @@ export const INSTRUCTIONS = new Map([
   [T.PLOT, doPlot],
   [T.LINE, doLine],
   [T.DRAW, doDraw],
+  [T.SWAP, doSwap],
   [T.SCREEN_SWAP, doScreenSwap],
   [T.SCREEN_COPY, doScreenCopy],
 ]);
@@ -735,6 +865,9 @@ export const EXT_INSTRUCTIONS = new Map([
   [SUB.CLICK, doFlag],
   [SUB.HIDE, (it) => {}],
   [SUB.SHOW, (it) => {}],
+  [SUB.FIX, doFix],
+  [SUB.SORT, doSort],
+  [SUB.USING, (it) => printUsing(it)],
   [SUB.RESERVE, doReserve],
   [SUB.INPUT, doInput],
   [SUB.LINEINPUT, doLineInput],
@@ -851,6 +984,8 @@ export const FUNC_TABLE = new Map([
   [T.LENGTH, (it) => INT(str1(it).length)],
   [T.PI, () => FLOAT(Math.PI)],
   [T.TIMER, (it) => INT(Math.floor((it.now() - it.t0) / 20))], // compteur 50 Hz
+  [T.TIMES, (it) => it.vars.get("__time$") ?? STR(hostTime(it))],
+  [T.DATES, (it) => it.vars.get("__date$") ?? STR(hostDate(it))],
 ]);
 
 // ===========================================================================
@@ -890,6 +1025,20 @@ export const EXTFUNC_TABLE = new Map([
     const idx = hay.indexOf(needle, start - 1);
     return INT(idx < 0 ? 0 : idx + 1);
   }],
+  [FSUB.FLIP, (it) => STR([...str1(it)].reverse().join(""))],
+  [FSUB.FREE, (it) => INT(it.io.freeBytes ?? 0x100000)],
+  [FSUB.LANGUAGE, (it) => INT(it.langue)],
+  [FSUB.MATCH, (it) => {
+    // MATCH(tableau(0), valeur) : le 1er argument est un nom de tableau,
+    // on le lit comme une lvalue pour retrouver la table complète.
+    if (!it.eatRaw("(")) it.err(ERR.SYNTAX);
+    const lv = it.parseLvalue();
+    if (!lv.dims || lv.dims.length !== 1) it.err(ERR.FON_CALL);
+    it.expectRaw(",");
+    const needle = it.evalExpr();
+    it.expectRaw(")");
+    return INT(it.matchArray(lv.name, needle));
+  }],
   [FSUB.MAX, (it) => {
     const [a, b] = it.args(2, 2);
     const x = it.toNum(a), y = it.toNum(b);
@@ -915,10 +1064,25 @@ export const EXTFUNC_TABLE = new Map([
   }],
   [FSUB.TAN, (it) => FLOAT(Math.tan(trigIn(it, num1(it))))],
   [FSUB.ATAN, (it) => FLOAT(trigOut(it, Math.atan(num1(it))))],
+  [FSUB.HSIN, (it) => FLOAT(Math.sinh(num1(it)))],
+  [FSUB.HCOS, (it) => FLOAT(Math.cosh(num1(it)))],
+  [FSUB.HTAN, (it) => FLOAT(Math.tanh(num1(it)))],
+  [FSUB.ASIN, (it) => {
+    const x = num1(it);
+    if (x < -1 || x > 1) it.err(ERR.FON_CALL);
+    return FLOAT(trigOut(it, Math.asin(x)));
+  }],
+  [FSUB.ACOS, (it) => {
+    const x = num1(it);
+    if (x < -1 || x > 1) it.err(ERR.FON_CALL);
+    return FLOAT(trigOut(it, Math.acos(x)));
+  }],
   [FSUB.SGN, (it) => INT(Math.sign(num1(it)))],
   [FSUB.INT, (it) => INT(Math.floor(num1(it)))], // INT = plancher, comme BASIC
-  [FSUB.DEG, (it) => { it.degMode = true; return INT(1); }],
-  [FSUB.RAD, (it) => { it.degMode = false; return INT(0); }],
+  // DEG/RAD : en fonction, conversion pure (le mode s'obtient par
+  // l'instruction seule, cf. Interpreter.execStatement).
+  [FSUB.DEG, (it) => FLOAT((num1(it) * 180) / Math.PI)],
+  [FSUB.RAD, (it) => FLOAT((num1(it) * Math.PI) / 180)],
   [FSUB.ERRN, () => INT(0)],
   [FSUB.ERRL, () => INT(0)],
 ]);

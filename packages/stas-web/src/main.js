@@ -104,6 +104,7 @@ stas.io.onScreen = () => {
 };
 
 stas.io.readLine = (echo) => input.readLine(echo);
+stas.io.inputChars = (n) => input.inputChars(n);
 stas.io.inkey = () => input.inkey();
 stas.io.flush = () => renderer.render(true);
 stas.io.tick = async () => renderer.render();

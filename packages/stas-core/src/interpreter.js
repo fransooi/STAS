@@ -24,8 +24,8 @@ import { T, SUB, FSUB } from "./tokens.js";
 import { StosError, ERR } from "./errors.js";
 import {
   INT, FLOAT, STR,
-  T_INT, T_STR,
-  numResult,
+  T_INT, T_FLOAT, T_STR,
+  numResult, fmtValue, fmtFixed,
 } from "./values.js";
 import { makeEcho } from "./ascii-buffer.js";
 import {
@@ -82,6 +82,8 @@ export class Interpreter {
     this.dataItems = null;
     this.dataPtr = 0;
     this.degMode = false;       // false = radians (défaut STOS)
+    this.fixPrecision = null;   // FIX(n) : précision d'affichage des réels (null = %g)
+    this._inputTemps = new Map(); // INPUT$(n) résolus pour l'instruction courante
     this.running = false;
     this.directMode = false;
     this.breakRequested = false;
@@ -103,6 +105,7 @@ export class Interpreter {
     this.repeatStack = [];
     this.dataItems = null;
     this.dataPtr = 0;
+    this.fixPrecision = null;
   }
 
   // -- Providers ----------------------------------------------------------
@@ -183,6 +186,77 @@ export class Interpreter {
       : "";
     if (line === null) this.err(ERR.BREAK); // fin d'entrée (pipe fermé)
     return line;
+  }
+
+  /**
+   * INPUT$(n) — lit n caractères sans écho. Fourni par la plateforme
+   * (io.inputChars) ; à défaut, retombe sur une ligne (l'écho en plus).
+   */
+  async readChars(n) {
+    n = Math.max(0, Math.trunc(n));
+    if (n === 0) return "";
+    if (this.io.inputChars) {
+      const s = await this.io.inputChars(n);
+      return s === null ? this.err(ERR.BREAK) : String(s).slice(0, n);
+    }
+    return (await this.readInput("")).slice(0, n);
+  }
+
+  /**
+   * INPUT$ est asynchrone alors que evalExpr est synchrone. On résout donc
+   * les INPUT$(n) AVANT d'exécuter l'instruction : chaque occurrence est lue
+   * et mémorisée (index → valeur), puis parsePrimary la retrouve à sa place.
+   * Le balayage s'arrête à `:`, `ELSE` et `THEN` : une branche de IF non
+   * exécutée n'est ainsi jamais lue.
+   */
+  async resolveInputCalls() {
+    const toks = this.tokens;
+    let i = this.pc.ti;
+    while (i < toks.length) {
+      const code = toks[i].code;
+      if (code === COLON || code === T.ELSE || code === T.THEN) break;
+      const t = toks[i];
+      if (t.code === T.EXT_FUNC && t.sub === FSUB.INPUTN) {
+        const save = this.pc.ti;
+        this.pc.ti = i + 1;
+        const [nv] = this.args(1, 1);
+        const after = this.pc.ti;
+        this.pc.ti = save; // l'instruction n'a pas encore commencé
+        const n = this.toInt(nv);
+        if (n < 0) this.err(ERR.FON_CALL);
+        const value = STR(await this.readChars(n));
+        this._inputTemps.set(i, { value, after });
+        i = after;
+      } else {
+        i++;
+      }
+    }
+  }
+
+  /** Vrai si les tokens courants contiennent au moins un INPUT$ (cache par ligne). */
+  tokensHaveInput() {
+    const line = this.pc.li >= 0 ? this.program.lines[this.pc.li] : null;
+    if (line) {
+      if (line.hasInput === undefined) {
+        line.hasInput = line.tokens.some(
+          (t) => t.code === T.EXT_FUNC && t.sub === FSUB.INPUTN
+        );
+      }
+      return line.hasInput;
+    }
+    return (this._directTokens ?? []).some(
+      (t) => t.code === T.EXT_FUNC && t.sub === FSUB.INPUTN
+    );
+  }
+
+  /**
+   * Formatage PRINT : les réels suivent FIX(n) ; le reste passe par fmtValue.
+   */
+  formatValue(val) {
+    if (val.t === T_FLOAT && this.fixPrecision != null) {
+      return fmtFixed(val.v, this.fixPrecision);
+    }
+    return fmtValue(val);
   }
 
   // -- Accès aux tokens (le "chrget") --------------------------------------
@@ -294,6 +368,8 @@ export class Interpreter {
   }
 
   async execStatement() {
+    this._inputTemps.clear();
+    if (this.tokensHaveInput()) await this.resolveInputCalls();
     const tok = this.next();
     if (!tok) return;
     switch (tok.code) {
@@ -305,6 +381,10 @@ export class Interpreter {
       case T.LOGIC:
       case T.PHYSIC:
         return this.doSysVarAssign(tok.code === T.LOGIC ? "logic" : "physic");
+      case T.TIMES:
+        return this.doSysStrAssign("__time$");
+      case T.DATES:
+        return this.doSysStrAssign("__date$");
       case T.GOTO:
         return this.doGotoTo(this.toInt(this.evalExpr()));
       case T.GOSUB:
@@ -339,11 +419,19 @@ export class Interpreter {
         return this.doRead();
       case T.DIM:
         return this.doDim();
-      case T.EXT_FUNC:
-        if (tok.sub === FSUB.DEG) { this.degMode = true; return; }
-        if (tok.sub === FSUB.RAD) { this.degMode = false; return; }
+      case T.EXT_FUNC: {
+        // DEG / RAD : forme instruction seule, on bascule le mode angulaire ;
+        // suivie de "(", c'est la forme fonction (conversion) du STOS.
+        if (tok.sub === FSUB.DEG || tok.sub === FSUB.RAD) {
+          if (this.peek()?.code === 40) {
+            return EXTFUNC_TABLE.get(tok.sub)(this);
+          }
+          this.degMode = tok.sub === FSUB.DEG;
+          return;
+        }
         this.err(ERR.SYNTAX);
         return;
+      }
       case T.ETENDU: {
         if (EXT_DIRECT_ONLY.has(tok.sub) && !this.directMode) {
           this.err(ERR.ILL_PROG);
@@ -557,6 +645,15 @@ export class Interpreter {
     this.setVar(name, this.evalExpr());
   }
 
+  /**
+   * Affectation d'une variable système chaîne (TIME$=…, DATE$=…).
+   * La valeur assignée prime sur l'horloge hôte à la relecture.
+   */
+  doSysStrAssign(name) {
+    if (!this.eat(T.EGAL)) this.err(ERR.SYNTAX);
+    this.setVar(name, this.evalExpr());
+  }
+
   async doAssignWith(name) {
     let dims = null;
     if (this.eatRaw("(")) {
@@ -611,6 +708,41 @@ export class Interpreter {
     if (!a || !a.array) this.err(ERR.NO_ARRAY);
     if ((val.t === T_STR) !== (a.t === T_STR)) this.err(ERR.TYPE_MISMATCH);
     a.data[this.flatIndex(a, dims)] = val.v;
+  }
+
+  /** SORT a$(0) — trie un tableau 1-D par ordre croissant (nombres ou chaînes). */
+  sortArray(name) {
+    const a = this.vars.get(name);
+    if (!a || !a.array) this.err(ERR.NO_ARRAY);
+    if (a.dims.length !== 1) this.err(ERR.FON_CALL);
+    if (a.t === T_STR) a.data.sort((x, y) => (x < y ? -1 : x > y ? 1 : 0));
+    else a.data.sort((x, y) => x - y);
+  }
+
+  /**
+   * MATCH (tableau(0), valeur) — recherche dichotomique dans un tableau trié
+   * 1-D. Renvoie l'indice si trouvé, sinon l'opposé de l'indice du premier
+   * élément supérieur (ou -nbÉléments si la valeur dépasse tout).
+   */
+  matchArray(name, needle) {
+    const a = this.vars.get(name);
+    if (!a || !a.array) this.err(ERR.NO_ARRAY);
+    if (a.dims.length !== 1) this.err(ERR.FON_CALL);
+    const isStr = a.t === T_STR;
+    if ((needle.t === T_STR) !== isStr) this.err(ERR.TYPE_MISMATCH);
+    const data = a.data;
+    const cmp = isStr
+      ? (x, y) => (x < y ? -1 : x > y ? 1 : 0)
+      : (x, y) => x - y;
+    let lo = 0;
+    let hi = data.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (cmp(data[mid], needle.v) < 0) lo = mid + 1;
+      else hi = mid;
+    }
+    if (lo < data.length && cmp(data[lo], needle.v) === 0) return lo;
+    return lo < data.length ? -lo : -data.length;
   }
 
   async doDim() {
@@ -773,6 +905,11 @@ export class Interpreter {
       case T.PHYSIC:
         return this.getVar("physic");
       case T.EXT_FUNC: {
+        const rec = this._inputTemps.get(this.pc.ti - 1);
+        if (rec) {
+          this.pc.ti = rec.after; // INPUT$(n) déjà lu pour cette instruction
+          return rec.value;
+        }
         const h = EXTFUNC_TABLE.get(t.sub);
         if (!h) this.err(ERR.NOT_IMPL);
         return h(this);

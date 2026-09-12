@@ -1122,3 +1122,154 @@ test("play / flash / key / hide / click : acceptés sans effet", async () => {
   await stas.run();
   assert.ok(true);   // aucune erreur levée = vocabulaire accepté
 });
+
+// ---------------------------------------------------------------------------
+//  Compléments §3.3 : trig/hyperbolique, matcher, FIX/USING, TIME$/DATE$, …
+// ---------------------------------------------------------------------------
+
+/** Stas avec providers personnalisés (inputChars, now). */
+async function runCustom(src, io = {}) {
+  const stas = new Stas({ langue: io.langue ?? 0 });
+  Object.assign(stas.io, io);
+  stas.loadSource(Array.isArray(src) ? src.join("\n") : src);
+  await stas.run();
+  return stas.buffer.toText();
+}
+
+test("trig : hyperboliques et ASIN/ACOS", async () => {
+  assert.deepEqual(await runOut([
+    "10 print hsin(0);hcos(0);htan(0)",
+    "20 print asin(0.5)",
+    "30 print acos(0.5)",
+  ]), ["010", "0.523598776", "1.04719755"]);
+});
+
+test("ASIN hors domaine = erreur 13", async () => {
+  await expectError(["10 print asin(2)"], ERR.FON_CALL);
+  await expectError(["10 print acos(-2)"], ERR.FON_CALL);
+});
+
+test("DEG/RAD : fonction = conversion, instruction = mode", async () => {
+  assert.deepEqual(await runOut([
+    "10 print deg(pi)",
+    "20 print rad(180)",
+    "30 print rad(deg(90))",
+  ]), ["180", "3.14159265", "90"]);
+  assert.deepEqual(await runOut([
+    "10 deg",
+    "20 print sin(30)",
+    "30 rad",
+    "40 print cos(0)",
+  ]), ["0.5", "1"]);
+});
+
+test("FLIP$ inverse la chaîne", async () => {
+  assert.deepEqual(await runOut(['10 print flip$("stos")']), ["sots"]);
+});
+
+test("FREE et LANGUAGE", async () => {
+  assert.deepEqual(await runOut(["10 print free>0", "20 print language"]), ["1", "0"]);
+  assert.deepEqual(await runOut(["10 print language"], { langue: 1 }), ["1"]);
+});
+
+test("TIME$/DATE$ : lecture hôte et affectation", async () => {
+  const fixed = new Date(1988, 5, 28, 10, 50, 0).getTime();
+  const lines = out(await runCustom(["10 print time$", "20 print date$"], {
+    now: () => fixed,
+  }));
+  assert.deepEqual(lines, ["10:50:00", "28/06/1988"]);
+  assert.deepEqual(await runOut([
+    '10 time$="01:02:03":date$="28/06/88"',
+    "20 print time$;date$",
+  ]), ["01:02:0328/06/88"]);
+});
+
+test("SWAP : variables et éléments de tableau", async () => {
+  assert.deepEqual(await runOut([
+    '10 a=1:b=100:a$="left":b$="right"',
+    "20 swap a,b:swap(a$,b$)",
+    "30 print a;b;a$;b$",
+  ]), ["1001rightleft"]);
+  assert.deepEqual(await runOut([
+    "10 dim t(2):t(0)=1:t(1)=2:t(2)=3",
+    "20 swap t(0),t(2)",
+    "30 print t(0);t(1);t(2)",
+  ]), ["321"]);
+  await expectError(['10 a=1:b$="x"', "20 swap a,b$"], ERR.TYPE_MISMATCH);
+});
+
+test("FIX : précision d'affichage des réels", async () => {
+  assert.deepEqual(await runOut([
+    "10 fix(2):print pi",
+    "20 fix(0):print pi",
+    "30 fix(16):print pi",
+    "40 fix(-4):print pi",
+  ]), ["3.14", "3.14159265", "3.14159265", "3.1416E0"]);
+});
+
+test("SORT et MATCH : tableau trié 1-D", async () => {
+  assert.deepEqual(await runOut([
+    '10 dim a$(2):a$(0)="c":a$(1)="a":a$(2)="b"',
+    "20 sort a$(0)",
+    "30 print a$(0);a$(1);a$(2)",
+    '40 print match(a$(0),"b")',
+    '50 print match(a$(0),"bb")',
+    '60 print match(a$(0),"z")',
+  ]), ["abc", "1", "-2", "-3"]);
+  assert.deepEqual(await runOut([
+    "10 dim n(3):n(0)=30:n(1)=10:n(2)=20:n(3)=40",
+    "20 sort n(0)",
+    "30 print n(0);n(1);n(2);n(3)",
+  ]), ["10203040"]);
+  await expectError(['10 dim a$(1)', "20 print match(a$(0),1)"], ERR.TYPE_MISMATCH);
+});
+
+test("USING : champs documentés (#, +, -, ., !)", async () => {
+  assert.deepEqual(await runOut([
+    '10 print using "###.##";3.14159',
+    '20 print using "x=###";42',
+    '30 print using "+###";10',
+    '40 print using "-###";10',
+    '50 print using "!!!!x";"ab"',
+  ]), ["  3.14", "x= 42", " +10", "  10", "ab  x"]);
+});
+
+test("USING : forme instruction autonome", async () => {
+  assert.deepEqual(await runOut(['10 using "###";7']), ["  7"]);
+});
+
+test("INPUT$ : lecture, dans une expression, branches non prises", async () => {
+  const stas = new Stas({});
+  const reads = [];
+  const feed = "abcdefghij";
+  let pos = 0;
+  stas.io.inputChars = async (n) => {
+    reads.push(n);
+    const s = feed.slice(pos, pos + n);
+    pos += n;
+    return s;
+  };
+  stas.loadSource([
+    "10 x$=input$(3)",
+    "20 print x$",
+    '30 print input$(2)+"!"',
+    "40 if 0 then y$=input$(5)",
+    '50 print "done"',
+  ]);
+  await stas.run();
+  assert.deepEqual(out(stas.buffer.toText()), ["abc", "de!", "done"]);
+  assert.deepEqual(reads, [3, 2]); // la branche IF non prise n'a rien lu
+});
+
+test("INPUT$ : relu à chaque itération", async () => {
+  const stas = new Stas({});
+  let calls = 0;
+  stas.io.inputChars = async (n) => {
+    calls++;
+    return "X".repeat(n);
+  };
+  stas.loadSource(["10 for k=1 to 3", "20 print input$(1);", "30 next k"]);
+  await stas.run();
+  assert.deepEqual(out(stas.buffer.toText()), ["XXX"]);
+  assert.equal(calls, 3);
+});

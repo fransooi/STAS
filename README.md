@@ -172,12 +172,18 @@ colonnes, `TAB(n)`), `CLS`, `LOCATE x,y` (0-based), `PEN n`, `PAPER n`, `HOME`,
 **Entrées** : `INPUT ["texte";] v[,v2...]`, `LINE INPUT`, `INKEY$` (non
 bloquant).
 
-**Fonctions maths** : `ABS INT SQR SGN SIN COS TAN ATN EXP LN LOG PI MIN MAX
-RND DEG RAD` — `LOG` = base 10 comme le STOS, `DEG`/`RAD` changent le mode
-des trigonométriques.
+**Fonctions maths** : `ABS INT SQR SGN SIN COS TAN ATN ASIN ACOS HSIN HCOS
+HTAN EXP LN LOG PI MIN MAX RND` — `LOG` = base 10 comme le STOS. `FIX n` règle
+la précision d'affichage des réels (1..15 décimales, ≥16 = normale, négatif =
+exponentielle).
 
 **Fonctions chaînes** : `CHR$ ASC LEN LEFT$ RIGHT$ MID$ STR$ VAL SPACE$
-STRING$ INSTR UPPER$ LOWER$ HEX$ BIN$`, plus `TIMER` (compteur 50 Hz),
+STRING$ INSTR UPPER$ LOWER$ HEX$ BIN$ FLIP$`, plus `INPUT$(n)` (lit n
+caractères sans écho) et le formatage `USING`.
+
+**Tableaux & système** : `MATCH` (plus proche valeur dans un tableau trié 1-D),
+`SORT a(0)` (trie un tableau 1-D), `SWAP x,y` (échange deux variables),
+`FREE`, `TIME$`, `DATE$`, `LANGUAGE`, `TIMER` (compteur 50 Hz),
 `TRUE`/`FALSE`.
 
 **Commandes directes** : `RUN [n]`, `LIST` (bornes : `LIST n`, `LIST n,m`,
@@ -216,6 +222,9 @@ affectation `LOGIC=`/`PHYSIC=`. `PLAY` est accepté mais silencieux ;
 ### Décisions sémantiques (V1)
 
 - `TRUE` vaut **1**, comparaisons rendent 0/1
+- `DEG`/`RAD` sont à la fois instruction et fonction, comme le STOS : utilisés
+  seuls ils changent le mode trigonométrique ; `DEG(x)`/`RAD(x)` convertissent
+  l'angle (radians ↔ degrés)
 - `^` associatif **à gauche** — `2^3^2 = 64`, bizarrerie du STOS conservée
 - `AND OR XOR` = bit à bit sur 32 bits signés ; `NOT` booléen
 - `7/2 → 3.5` mais `8/2 → 4` : division entière quand c'est exact

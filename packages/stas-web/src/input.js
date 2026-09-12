@@ -9,6 +9,7 @@ export class WebInput {
     this.stas = stas;
     this.onDirty = null;
     this._pending = null;
+    this._charPending = null;
     this._keys = [];
     window.addEventListener("keydown", (e) => this._onKey(e));
   }
@@ -24,8 +25,35 @@ export class WebInput {
     return k === undefined ? "" : k;
   }
 
+  /** INPUT$(n) — attend n caractères, sans écho (comme le STOS). */
+  inputChars(n) {
+    n = Math.max(0, Math.trunc(n));
+    if (n === 0) return Promise.resolve("");
+    return new Promise((resolve) => {
+      this._charPending = { buf: "", need: n, resolve };
+    });
+  }
+
+  _charChar(ch) {
+    const p = this._charPending;
+    if (!p) return;
+    if (ch < " ") return;
+    p.buf += ch;
+    if (p.buf.length >= p.need) {
+      this._charPending = null;
+      p.resolve(p.buf.slice(0, p.need));
+    }
+  }
+
   /** Injection depuis le parent (postMessage "input") */
   inject(text) {
+    if (this._charPending) {
+      for (const ch of text) {
+        if (!this._charPending) break;
+        this._charChar(ch);
+      }
+      return;
+    }
     if (this._pending) {
       const p = this._pending;
       this._pending = null;
@@ -54,7 +82,8 @@ export class WebInput {
   }
 
   _feed(ch) {
-    if (this._pending) this._lineChar(ch);
+    if (this._charPending) this._charChar(ch);
+    else if (this._pending) this._lineChar(ch);
     else if (ch >= " ") this._keys.push(ch);
   }
 

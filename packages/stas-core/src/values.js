@@ -36,6 +36,22 @@ export function fmtValue(val) {
 }
 
 /**
+ * Formatage d'un réel selon la précision réglée par FIX(n) — STOS :
+ *   1..15 : n chiffres après la virgule
+ *   >= 16 : mode normal proportionnel (zéros inutiles supprimés)
+ *   < 0   : notation exponentielle, |n| chiffres après la virgule
+ * `n` null = aucun FIX → mode normal (%g).
+ */
+export function fmtFixed(v, n) {
+  if (n == null || n === 0 || n >= 16) return fmtNum(v);
+  if (n > 0) return v.toFixed(n);
+  return v
+    .toExponential(Math.abs(n))
+    .replace("e", "E")
+    .replace(/E\+?(-?)0*(\d)/, "E$1$2");
+}
+
+/**
  * Fabrique une valeur numérique en gardant le type entier si possible :
  * entier tant que les deux opérandes sont entiers et le résultat tient
  * dans un entier sûr, réel sinon.
