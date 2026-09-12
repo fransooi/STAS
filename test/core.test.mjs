@@ -2031,3 +2031,108 @@ test("PACK/UNPACK : aller-retour d'une image bruitée (+ palette)", async () => 
   const len = parseInt(out(stas.buffer.toText())[0], 10);
   assert.ok(len > 70, `longueur compactée ${len}`);
 });
+
+// ---------------------------------------------------------------------------
+//  GR WRITING / SCREEN COPY (zone) / REDUCE / ZOOM
+// ---------------------------------------------------------------------------
+
+async function pixelAfter(lines) {
+  const stas = new Stas({});
+  stas.loadSource(lines);
+  await stas.run();
+  return stas.io.logic.get(5, 5);
+}
+
+test("GR WRITING 1 : remplacement (défaut)", async () => {
+  const c = await pixelAfter(["10 paper 0", "20 mode 0", "30 plot 5,5,3", "40 gr writing 1", "50 plot 5,5,1"]);
+  assert.equal(c, 1);
+});
+
+test("GR WRITING 2 : transparent (la couleur 0 est omise)", async () => {
+  const c = await pixelAfter([
+    "10 paper 0", "20 mode 0", "30 plot 5,5,3",
+    "40 gr writing 2", "50 plot 5,5,0", "60 plot 5,5,4",
+  ]);
+  assert.equal(c, 4); // le 0 fut ignoré, le 4 posé
+});
+
+test("GR WRITING 3 : XOR", async () => {
+  const stas = new Stas({});
+  stas.loadSource([
+    "10 paper 0", "20 mode 0", "30 plot 5,5,2",
+    "40 gr writing 3", "50 plot 5,5,1", "60 print point(5,5)",
+    "70 plot 5,5,1", "80 print point(5,5)",
+  ]);
+  await stas.run();
+  assert.deepEqual(out(stas.buffer.toText()), ["3", "2"]); // 2^1 puis 3^1
+});
+
+test("GR WRITING 4 : transparent inverse (seuls les points 0)", async () => {
+  const c = await pixelAfter([
+    "10 paper 0", "20 mode 0", "30 plot 5,5,2",
+    "40 gr writing 4", "50 plot 5,5,5", "60 plot 5,5,0",
+  ]);
+  assert.equal(c, 0);
+});
+
+test("GR WRITING : mode hors 1..4 = erreur 13", async () => {
+  await expectError(["10 gr writing 5"], ERR.FON_CALL);
+  await expectError(["10 gr writing 0"], ERR.FON_CALL);
+});
+
+test("SCREEN COPY : copie une zone avec position d'arrivée", async () => {
+  const stas = new Stas({});
+  stas.loadSource([
+    "10 paper 0", "20 mode 0", "30 plot 10,10,3",
+    "40 screen copy logic,8,8,12,12 to physic,100,50",
+  ]);
+  await stas.run();
+  assert.equal(stas.physic.get(102, 52), 3); // (10,10) -> (100+2,50+2)
+  assert.equal(stas.logic.get(102, 52), 0);  // le LOGIC n'est pas touché
+});
+
+test("SCREEN COPY : aller-retour par une banque écran", async () => {
+  const stas = new Stas({});
+  stas.loadSource([
+    "10 paper 0", "20 mode 0", "30 plot 10,10,3",
+    "40 reserve as screen 5",
+    "50 screen copy logic to 5",   // écran entier -> banque
+    "60 cls",
+    "70 screen copy 5 to logic",   // banque -> écran entier
+    "80 print point(10,10)",
+  ]);
+  await stas.run();
+  assert.deepEqual(out(stas.buffer.toText()), ["3"]);
+});
+
+test("REDUCE : écran entier vers un rectangle", async () => {
+  const stas = new Stas({});
+  stas.loadSource([
+    "10 paper 0", "20 mode 0",
+    "30 plot 0,0,5", "40 plot 316,0,6",
+    "50 reduce logic to 200,50,280,100",
+  ]);
+  await stas.run();
+  assert.equal(stas.physic.get(200, 50), 5);  // source (0,0)
+  assert.equal(stas.physic.get(279, 50), 6);  // source (316,0) : table tab_x
+});
+
+test("REDUCE : rectangle invalide = erreur 13", async () => {
+  await expectError(["10 mode 0", "20 reduce logic to 10,10,10,20"], ERR.FON_CALL);
+});
+
+test("ZOOM : agrandit un rectangle (plus proche voisin)", async () => {
+  const stas = new Stas({});
+  stas.loadSource([
+    "10 paper 0", "20 mode 0",
+    "30 plot 0,0,6", "40 plot 1,1,7",
+    "50 zoom logic,0,0,10,10 to physic,100,50,140,90",
+  ]);
+  await stas.run();
+  assert.equal(stas.physic.get(100, 50), 6);   // source (0,0) -> 4x
+  assert.equal(stas.physic.get(104, 54), 7);   // source (1,1) -> +4 pixels
+});
+
+test("ZOOM : rétrécir = erreur 13", async () => {
+  await expectError(["10 mode 0", "20 zoom logic,0,0,40,40 to physic,0,0,10,10"], ERR.FON_CALL);
+});

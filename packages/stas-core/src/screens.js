@@ -1,10 +1,11 @@
 /*
- *  STAS — écrans : opérandes, lecture planaire et APPEAR
+ *  STAS — écrans : opérandes, accès pixel et effets (APPEAR / ZOOM / REDUCE…)
  *  --------------------------------------------------------------------
  *  Un « écran » STOS peut être LOGIC, PHYSIC, une banque mémoire
  *  (RESERVE AS SCREEN n) ou une adresse d'écran. Ce module résout ces
- *  opérandes et fournit un accès pixel/octet planaire, partagé par
- *  APPEAR (SPRITES.S `appear:`) et le compacteur (COMPACT.S).
+ *  opérandes et fournit une VUE PIXEL unifiée, partagée par APPEAR
+ *  (SPRITES.S `appear:`), ZOOM/REDUCE (SPRITES.S `zoom:`/`reduce:`) et
+ *  SCREEN COPY (BASIC.S `scrcopy:`).
  *
  *  Rappel du format d'une banque écran STOS : 32000 octets de bitmap ST
  *  (lowres 320x200, 4 plans entrelacés par mots de 16 bits, 160 o/ligne)
@@ -12,26 +13,44 @@
  *  --------------------------------------------------------------------
  */
 
-import { MEM_LOGIC, MEM_PHYSIC } from "./memory.js";
+import { MEM_LOGIC, MEM_PHYSIC, bankBase } from "./memory.js";
 import { T } from "./tokens.js";
 import { ERR } from "./errors.js";
 
-/** Résout un opérande écran en { kind: "logic"|"physic"|"bank", n }. */
-export function resolveScreen(it) {
-  const t = it.peek();
-  if (t && t.code === T.PHYSIC) { it.next(); return { kind: "physic" }; }
-  if (t && t.code === T.LOGIC) { it.next(); return { kind: "logic" }; }
-  if (t && (t.code === T.BACK || t.code === T.DEFAULT)) it.err(ERR.NOT_IMPL);
-  const v = it.toInt(it.evalExpr()) >>> 0;
+export const PIXEL_W = 320;
+export const PIXEL_H = 200;
+
+// --- résolution d'adresses --------------------------------------------------
+
+/** Adresse d'une banque (n'importe quel type) ou d'une adresse brute. */
+export function bankAddr(it, v) {
+  if (v < 0) it.err(ERR.FON_CALL);
+  if (v < 16) {
+    if (!it.io.banks.has(v)) it.err(ERR.BANK_NOT_RES);   // 44
+    return bankBase(v);
+  }
+  return v >>> 0;
+}
+
+/** Même chose pour un écran : la banque doit être SCREEN/DATASCREEN. */
+export function screenAddr(it, v) {
+  if (v < 0) it.err(ERR.FON_CALL);
   if (v < 16) {
     const b = it.io.banks.get(v);
-    if (!b) it.err(ERR.BANK_NOT_RES);                      // 44
+    if (!b) it.err(ERR.BANK_NOT_RES);
     if (b.kind !== "screen" && b.kind !== "datascreen") it.err(ERR.BANK_NOT_SCR);
-    return { kind: "bank", n: v };
+    return bankBase(v);
   }
-  if (v & MEM_LOGIC) return { kind: "logic" };
-  if (v & MEM_PHYSIC) return { kind: "physic" };
-  it.err(ERR.BAD_SCR_ADDR);                                // 43
+  return v >>> 0;
+}
+
+/** Résout un opérande écran en adresse (LOGIC/PHYSIC, banque ou adresse). */
+export function screenOperand(it) {
+  const t = it.peek();
+  if (t && t.code === T.PHYSIC) { it.next(); return MEM_PHYSIC; }
+  if (t && t.code === T.LOGIC) { it.next(); return MEM_LOGIC; }
+  if (t && (t.code === T.BACK || t.code === T.DEFAULT)) it.err(ERR.NOT_IMPL);
+  return screenAddr(it, it.toInt(it.evalExpr()));
 }
 
 /** Les 16 mots de palette d'une banque écran (offset 32000, gros-boutistes). */
@@ -47,29 +66,60 @@ export function bankPalette(it, n) {
   return out;
 }
 
-/**
- * Lecteur pixel d'un écran lowres 320x200 : (index) -> couleur 0..15.
- * Une banque est lue dans son bitmap planaire ST ; LOGIC/PHYSIC dans le
- * PixelScreen vivant.
- */
-export function pixelReader(it, ref) {
-  if (ref.kind === "logic" || ref.kind === "physic") {
-    const s = ref.kind === "logic" ? it.io.logic : it.io.physic;
-    if (!s) it.err(ERR.GFX_MODE);
-    return (i) => s.colors[i];
+// --- vue pixel (écran vivant ou banque planaire) ----------------------------
+
+// Un écran lowres : octet de poids fort du groupe de 16 pixels en premier.
+function bankPixelOff(x, y) {
+  return y * 160 + ((x >> 4) << 3) + ((x & 8) ? 1 : 0);
+}
+
+function readBankPixel(data, x, y) {
+  const base = bankPixelOff(x, y);
+  const bit = 7 - (x & 7);
+  let c = 0;
+  for (let p = 0; p < 4; p++) {
+    if (((data[base + p * 2] ?? 0) >> bit) & 1) c |= 1 << p;
   }
-  const data = it.io.banks.get(ref.n).data;
-  return (i) => {
-    const x = i % 320;
-    const y = (i / 320) | 0;
-    // position dans le groupe de 16 pixels, octet fort/faible, puis les 4 plans
-    const base = y * 160 + ((x >> 4) << 3) + ((x & 8) ? 1 : 0);
-    const bit = 7 - (x & 7);
-    let c = 0;
-    for (let p = 0; p < 4; p++) {
-      if (((data[base + p * 2] ?? 0) >> bit) & 1) c |= 1 << p;
-    }
-    return c;
+  return c;
+}
+
+function writeBankPixel(data, x, y, c) {
+  const base = bankPixelOff(x, y);
+  const bit = 7 - (x & 7);
+  for (let p = 0; p < 4; p++) {
+    const off = base + p * 2;
+    if ((c >> p) & 1) data[off] = (data[off] ?? 0) | (1 << bit);
+    else data[off] = (data[off] ?? 0) & ~(1 << bit) & 0xff;
+  }
+}
+
+/**
+ * Vue pixel d'un écran : get(x,y) -> couleur 0..15, touched(x,y) -> 0|1,
+ * set(x,y,color,touched), bump() (invalide le rendu ; no-op sur une banque).
+ */
+export function pixelView(it, base) {
+  if (base === MEM_LOGIC || base === MEM_PHYSIC) {
+    const s = base === MEM_LOGIC ? it.io.logic : it.io.physic;
+    if (!s) it.err(ERR.GFX_MODE);
+    return {
+      get: (x, y) => s.colors[y * PIXEL_W + x],
+      touched: (x, y) => s.touched[y * PIXEL_W + x],
+      set: (x, y, c, t) => {
+        const i = y * PIXEL_W + x;
+        s.colors[i] = c & 15;
+        s.touched[i] = t ? 1 : 0;
+      },
+      bump: () => { s.version++; },
+    };
+  }
+  const b = it.io.banks.get((base >>> 25) & 0xf);
+  if (!b) it.err(ERR.BANK_NOT_RES);
+  const data = b.data;
+  return {
+    get: (x, y) => readBankPixel(data, x, y),
+    touched: () => 1,                     // une banque est une image opaque
+    set: (x, y, c) => writeBankPixel(data, x, y, c),
+    bump: () => {},
   };
 }
 
@@ -99,7 +149,7 @@ const APPEAR_FRAMES = 30;
 
 /** APPEAR écran[,effet] — révèle l'écran source sur le PHYSIC. */
 export async function doAppear(it) {
-  const ref = resolveScreen(it);
+  const srcBase = screenOperand(it);
   let effect;
   if (it.eatRaw(",")) {
     effect = it.toInt(it.evalExpr());
@@ -107,11 +157,12 @@ export async function doAppear(it) {
     effect = 1 + Math.floor(it.rnd() * 71);   // 1..71 (SPRITES.S : rnd 0..71, 0 rejeté)
   }
   if (effect < 1 || effect > 80) it.err(ERR.FON_CALL);
-  const dst = it.io.physic;
-  if (!dst) it.err(ERR.GFX_MODE);
-  const read = pixelReader(it, ref);
+  const dstBase = MEM_PHYSIC;
+  if (!it.io.physic) it.err(ERR.GFX_MODE);
+  const src = pixelView(it, srcBase);
+  const dst = pixelView(it, dstBase);
   const stride = TAPPEAR[effect - 1];
-  const total = dst.width * dst.height;
+  const total = PIXEL_W * PIXEL_H;
   const animated = !!(it.io.tick || it.io.sleep);
   // Avec un rendu réel : ~30 tranches (effet visible). En headless, quelques
   // tranches suffisent et évitent 30 setTimeout inutiles.
@@ -120,7 +171,9 @@ export async function doAppear(it) {
   let point = 0;
   let counter = 0;
   for (;;) {
-    dst.set(point % dst.width, (point / dst.width) | 0, read(point));
+    const x = point % PIXEL_W;
+    const y = (point / PIXEL_W) | 0;
+    dst.set(x, y, src.get(x, y), src.touched(x, y));
     if (++counter >= chunk) {
       counter = 0;
       if (animated) await it.sleep(16);   // ~1 trame : le rendu suit
@@ -131,6 +184,7 @@ export async function doAppear(it) {
     if (point === total) break;           // tout est révélé (pas copremier)
     point -= total;
   }
+  dst.bump();
   it.io.asciiCache = null;
   await it.tick();
 }

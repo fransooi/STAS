@@ -226,7 +226,10 @@ repaints the screen immediately. `SHIFT` rotates the palette and `FADE` fades
 it (interrupt-style animations, one step every `speed` frames). `APPEAR`
 reveals a bank screen onto PHYSIC pixel by pixel (the `tappear` coprime
 stride), and `GET PALETTE(n)` loads a bank screen's palette. `PACK`/`UNPACK`
-are the PICTURE COMPACTOR (a faithful `COMPACT.S` two-stage RLE).
+are the PICTURE COMPACTOR (a faithful `COMPACT.S` two-stage RLE). Screen
+effects round off V2: `ZOOM`/`REDUCE` scale rectangles, `SCREEN COPY
+src[,x1,y1,x2,y2] TO dst[,x3,y3]` copies an area (to/from bank screens too),
+and `GR WRITING 1..4` selects replace/transparent/XOR/inverse-transparent.
 `PLAY` is accepted but silent; `FLASH`/`KEY`/`CLICK` `ON|OFF`, `HIDE` and
 `SHOW` are no-ops.
 

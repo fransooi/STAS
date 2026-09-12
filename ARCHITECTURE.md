@@ -298,19 +298,18 @@ node packages/stas-core/...    # le cœur s'importe directement (ESM relatif)
 ## 12. État actuel & suite
 
 Voir `IMPLEMENTATION-STATUS.md` pour le détail chiffré (dernier connu :
-**218 implémentés / 125 restants**). Fait : langage (maths/chaînes/système),
+**221 implémentés / 122 restants**). Fait : langage (maths/chaînes/système),
 erreurs (`ON ERROR`/`RESUME`/`ERRN`/`ERRL`), mémoire (banques, `PEEK`/`POKE`,
-`VARPTR`, plans ST), fenêtres texte, attributs texte, graphisme V2 (primitives,
-palette `COLOUR`/`PALETTE`/`GET PALETTE`/`SHIFT`/`FADE`, `APPEAR`,
-`PACK`/`UNPACK`).
+`VARPTR`, plans ST), fenêtres texte, attributs texte, graphisme V2 COMPLET
+(primitives, palette `COLOUR`/`PALETTE`/`GET PALETTE`/`SHIFT`/`FADE`, `APPEAR`,
+`PACK`/`UNPACK`, `ZOOM`/`REDUCE`, `SCREEN COPY` de zone, `GR WRITING`).
 
 **Reste, par ordre suggéré :**
-1. **Effets écran** — `ZOOM`, `REDUCE`, copie de zone `SCREEN`.
-2. **Sprites** — brancher `stas-sprites` au runtime (`SPRITE`, `MOVE`, `ANIM`, …).
-3. **Musique** — `MUSIC`, `VOICE`, `VOLUME`, `TEMPO`, `ENVEL`, `PLAY` audible.
-4. **Menus**, **souris/joystick**, **fichiers/dossiers**, **éditeur**
+1. **Sprites** — brancher `stas-sprites` au runtime (`SPRITE`, `MOVE`, `ANIM`, …) et le « décor » `BACK`.
+2. **Musique** — `MUSIC`, `VOICE`, `VOLUME`, `TEMPO`, `ENVEL`, `PLAY` audible.
+3. **Menus**, **souris/joystick**, **fichiers/dossiers**, **éditeur**
    (`AUTO`, `RENUM`, `SEARCH`, `CHANGE`, …), **imprimante**.
-5. **Permanent error 20** : `BGRAB`, `CALL`, `TRAP`, `AREG`, `DREG`, `PSG`.
+4. **Permanent error 20** : `BGRAB`, `CALL`, `TRAP`, `AREG`, `DREG`, `PSG`.
 
 **Approximations assumées à documenter/polir :** `WRITING 2|3` (OR/XOR sur la
 cellule), `SHADE` (flag sans rendu), `SET PATTERN` (mémorisé, non rendu),

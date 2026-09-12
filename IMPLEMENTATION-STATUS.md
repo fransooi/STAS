@@ -22,16 +22,16 @@ raises STOS error **20** (`Function not implemented`), per
 | Category | Count |
 | --- | ---: |
 | Distinct tokenized keyword forms | **343** |
-| Implemented (handler present) | **218** |
-| Tokenized, **not** implemented → error 20 | **125** |
+| Implemented (handler present) | **221** |
+| Tokenized, **not** implemented → error 20 | **122** |
 | Manual entries **not tokenized at all** | **0** |
 
-Of the 218 "implemented" forms, 7 are pure structural markers (`TO`, `STEP`,
-`THEN`, `NEXT`, `WEND`, `UNTIL`, `ELSE`), leaving **≈ 211 distinct STOS
+Of the 221 "implemented" forms, 7 are pure structural markers (`TO`, `STEP`,
+`THEN`, `NEXT`, `WEND`, `UNTIL`, `ELSE`), leaving **≈ 214 distinct STOS
 features that actually run today**.
 
-> Iterations 1–9 landed: the count moved from 124 → **218** implemented
-> (217 → 125 missing).
+> Iterations 1–10 landed: the count moved from 124 → **221** implemented
+> (217 → 122 missing).
 
 **The token table is now complete:** `PACK` and `UNPACK` (the PICTURE
 COMPACTOR accessory) gained tokens in iteration 9. The difference between
@@ -179,8 +179,17 @@ a time, stepping by a stride coprime with 64000 so the image materialises over
 ~30 rendered frames. Effects 73–80 use even strides and stop early (partial
 image), exactly as the original.
 
-Still open: screen effects (`ZOOM`, `REDUCE`, `SCREEN` area copy) and
-`GRWRITING`.
+✅ **Screen effects done (iteration 10).** `ZOOM` (magnify a rectangle),
+`REDUCE` (whole screen → rectangle, with `SPRITES.S` `tab_x`'s "first source
+pixel per cell" mapping), the extended `SCREEN COPY ec1[,x1,y1,x2,y2] TO
+ec2[,x3,y3]` (rectangle copy with `scalc` clipping, to/from bank screens too)
+and `GR WRITING 1..4` (replace / transparent / XOR / inverse-transparent,
+applied in the pixel write path). ZOOM/REDUCE work at pixel level (nearest
+neighbour) instead of on bitplanes; the visible result matches.
+
+**§3.6 is complete.** The only caveat is the sprite-background (`back`) screen,
+still unmodelled: SCREEN COPY/ZOOM/REDUCE therefore default to PHYSIC where
+the original used the sprite background.
 
 ✅ **`PACK` / `UNPACK` (iteration 9).** Full port of `COMPACT.S` (c) FL Soft
 1987, the PICTURE COMPACTOR accessory: the exact region traversal (plane →
@@ -289,6 +298,10 @@ These features *run* but do not match the manual exactly:
 - **`PACK` / `UNPACK`** are byte-faithful to `COMPACT.S`. Two limits: a
   1-argument `UNPACK` (destination = sprite background) is not modelled, and
   `mode` 1/2 assume non-lowres images (STAS screens are always 320x200).
+- **`ZOOM` / `REDUCE` / `SCREEN COPY`** work at pixel level (nearest
+  neighbour) rather than on bitplanes, and default their destination to PHYSIC
+  where the original used the sprite-background screen. Graphics writing mode
+  is `GR WRITING 1..4` (distinct from the text `WRITING 1..3`).
 - **`PLAY`** parses its arguments but produces no sound.
 - **`FLASH` / `KEY` / `CLICK` ON|OFF** and **`HIDE` / `SHOW`** are no-ops.
 - **`IF … THEN … ELSE`** single-line only (no multi-line blocks) — by design.
@@ -315,10 +328,9 @@ Ranked by value ÷ effort, assuming the console/canvas target:
    real `ERRN`/`ERRL`, `BREAK ON|OFF` toggle. (`DEF FN` still open.)
 3. ✅ **Done (iteration 5)** — text/console fidelity: `SCRN`, cursor and
    coordinate conversions, `INVERSE`/`UNDER`/`SHADE`/`WRITING`, `SQUARE`.
-4. ◑ **Primitives + palette done (iterations 6–9)** — Graphics V2: arcs/pies,
-   `POLYGON`/`POLYLINE`/`POLYMARK`, `POINT`, `CLIP`, `SET LINE`/`MARK`/`PAINT`,
-   `DIVX`/`DIVY`, `COLOUR`/`PALETTE`/`GET PALETTE`/`SHIFT`/`FADE`, `APPEAR`,
-   `PACK`/`UNPACK`. (Screen effects still open.)
+4. ✅ **Graphics V2 complete (iterations 6–10)** — primitives, palette
+   (`COLOUR`/`PALETTE`/`GET PALETTE`/`SHIFT`/`FADE`), `APPEAR`, `PACK`/`UNPACK`,
+   `ZOOM`/`REDUCE`, extended `SCREEN COPY`, `GR WRITING`.
 5. ✅ **Done (iteration 4)** — text windows (borders, relative coordinates,
    activation).
 6. **Sprite runtime** — wire `stas-sprites` to `SPRITE`/`MOVE`/`ANIM`/

@@ -75,6 +75,7 @@ export class Stas {
       lockTextRes: false,  // adaptateur web : grille texte verrouillée (?text=/?res=)
       autoback: true,      // AUTOBACK ON : trace vers logic + physic
       ink: null,           // INK mémorisée (résiste à MODE, comme le STOS)
+      grWriting: 1,        // GR WRITING 1..4 (mode d'écriture graphique)
       banks: new Map(),    // banques RESERVE AS ... (n -> type)
       asciiCache: null,    // cache du converter graphique -> ascii
       sprites: [],         // plan sprites (au-dessus de tout)
@@ -262,6 +263,7 @@ export class Stas {
     this.io.autoback = true;
     this.io.asciiCache = null;
     this.io.spriteVersion = 0;
+    this.io.grWriting = 1;
     this.io.anim = { shift: null, fade: null };
     this.io.paletteVersion = (this.io.paletteVersion | 0) + 1;
     this.io.windows = new WindowManager(this.io);

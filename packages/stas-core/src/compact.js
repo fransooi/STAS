@@ -36,10 +36,10 @@
  *  --------------------------------------------------------------------
  */
 
-import { MEM_LOGIC, MEM_PHYSIC, bankBase } from "./memory.js";
-import { T } from "./tokens.js";
+import { MEM_LOGIC, MEM_PHYSIC } from "./memory.js";
 import { ERR } from "./errors.js";
 import { setPaletteWord } from "./palette.js";
+import { bankAddr, screenAddr, screenOperand } from "./screens.js";
 
 const MAGIC = 0x06071963;
 
@@ -51,37 +51,7 @@ export const TMODE = [
 ];
 
 // --- résolution d'adresses (format mémoire STAS, cf. memory.js) -------------
-
-/** Adresse d'une banque (n'importe quel type) ou d'une adresse brute. */
-export function bankAddr(it, v) {
-  if (v < 0) it.err(ERR.FON_CALL);
-  if (v < 16) {
-    if (!it.io.banks.has(v)) it.err(ERR.BANK_NOT_RES);   // 44
-    return bankBase(v);
-  }
-  return v >>> 0;
-}
-
-/** Adresse d'un écran : banque SCREEN/DATASCREEN, LOGIC/PHYSIC ou adresse. */
-export function screenOperand(it) {
-  const t = it.peek();
-  if (t && t.code === T.PHYSIC) { it.next(); return MEM_PHYSIC; }
-  if (t && t.code === T.LOGIC) { it.next(); return MEM_LOGIC; }
-  if (t && (t.code === T.BACK || t.code === T.DEFAULT)) it.err(ERR.NOT_IMPL);
-  return screenAddr(it, it.toInt(it.evalExpr()));
-}
-
-/** Même chose à partir d'une valeur déjà évaluée (arguments de PACK). */
-export function screenAddr(it, v) {
-  if (v < 0) it.err(ERR.FON_CALL);
-  if (v < 16) {
-    const b = it.io.banks.get(v);
-    if (!b) it.err(ERR.BANK_NOT_RES);
-    if (b.kind !== "screen" && b.kind !== "datascreen") it.err(ERR.BANK_NOT_SCR);
-    return bankBase(v);
-  }
-  return v >>> 0;
-}
+// `bankAddr`, `screenAddr` et `screenOperand` vivent dans screens.js.
 
 /** Les 16 mots de palette d'un écran (banque : offset 32000 ; sinon la globale). */
 export function readScreenPalette(it, base) {

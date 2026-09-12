@@ -19,13 +19,13 @@ import {
 } from "./values.js";
 import { detokenize } from "./program.js";
 import { PixelScreen } from "./pixel-screen.js";
-import { bankBase } from "./memory.js";
+import { bankBase, MEM_LOGIC, MEM_PHYSIC } from "./memory.js";
 import {
   setPaletteWord, getPaletteWord,
   startShift, stopShift, startFade,
 } from "./palette.js";
-import { doAppear, bankPalette } from "./screens.js";
-import { bankAddr, screenAddr, screenOperand, packScreen, unpackScreen, TMODE } from "./compact.js";
+import { doAppear, bankPalette, screenOperand, screenAddr, bankAddr, pixelView, PIXEL_W, PIXEL_H } from "./screens.js";
+import { packScreen, unpackScreen, TMODE } from "./compact.js";
 
 // --- petits combinateurs ---------------------------------------------------
 const num1 = (it) => it.toNum(it.args(1, 1)[0]);
@@ -527,6 +527,17 @@ function doWriting(it) {
   it.buffer.curWriting = n;
 }
 
+/**
+ * GR WRITING 1..4 — mode d'écriture GRAPHIQUE (SPRITES.S `setwrite` +
+ * contrl 32) : 1 remplacement, 2 transparent (couleur 0 omise),
+ * 3 XOR, 4 transparent inverse (seuls les points de couleur 0).
+ */
+function doGrWriting(it) {
+  const n = it.toInt(it.evalExpr());
+  if (n < 1 || n > 4) it.err(ERR.FON_CALL);
+  it.io.grWriting = n;
+}
+
 /** CURS ON|OFF — affiche/maque le curseur. */
 function doCurs(it) {
   it.buffer.cursorVisible = flagArg(it);
@@ -964,6 +975,7 @@ function doCls(it) {
 let drawClip = null;
 let drawStyle = { mask: 0xffff, thick: 1 };
 let drawMark = { type: 1, height: 1 };
+let drawWriting = 1;   // GR WRITING 1..4 (setwrite)
 
 function targets(it) {
   const io = it.io;
@@ -971,6 +983,7 @@ function targets(it) {
   drawClip = io.clip ?? null;
   drawStyle = io.lineStyle ?? { mask: 0xffff, thick: 1 };
   drawMark = io.mark ?? { type: 1, height: 1 };
+  drawWriting = io.grWriting ?? 1;
   return io.autoback ? [io.logic, io.physic] : [io.logic];
 }
 
@@ -979,11 +992,22 @@ function inkColor(it) {
     : it.io.ink != null ? it.io.ink : it.buffer.curPen;
 }
 
-/** Un point, en respectant CLIP. */
+/** Un point, en respectant CLIP et le mode GR WRITING (SPRITES.S setwrite). */
 function putAll(tg, x, y, col) {
   const px = x | 0, py = y | 0;
   if (drawClip && (px < drawClip.x1 || px > drawClip.x2 || py < drawClip.y1 || py > drawClip.y2)) return;
-  for (const s of tg) s.set(px, py, col);
+  const w = drawWriting;
+  for (const s of tg) {
+    if (w === 2) {                       // transparent : la couleur 0 est omise
+      if (col !== 0) s.set(px, py, col);
+    } else if (w === 3) {                // XOR : dest ^= source
+      s.set(px, py, (s.get(px, py) ^ col) & 15);
+    } else if (w === 4) {                // transparent inverse : seuls les 0
+      if (col === 0) s.set(px, py, 0);
+    } else {
+      s.set(px, py, col);                // 1 = remplacement
+    }
+  }
 }
 
 /** Un point épais (SET LINE width). */
@@ -1461,17 +1485,6 @@ function doArcPie(it, pie, elliptical) {
   arcDraw(tg, cx, cy, r1, r2, a1, a2, inkColor(it), pie);
 }
 
-function screenRef(it) {
-  const t = it.peek();
-  if (t && t.code === T.PHYSIC) { it.next(); return "physic"; }
-  if (t && t.code === T.LOGIC) { it.next(); return "logic"; }
-  if (t && (t.code === T.BACK || t.code === T.DEFAULT ||
-            t.code === T.ENTIER || t.code === T.VARIABLE)) {
-    it.err(ERR.NOT_IMPL);                 // banques mémoire : M4
-  }
-  it.err(ERR.SYNTAX);
-}
-
 function doScreenSwap(it) {
   const io = it.io;
   if (!io.physic) it.err(ERR.GFX_MODE);
@@ -1481,19 +1494,207 @@ function doScreenSwap(it) {
   io.asciiCache = null;
 }
 
+/** Lit jusqu'à `max` entiers séparés par des virgules (s'arrête sur TO). */
+function readN(it, max) {
+  const out = [it.toInt(it.evalExpr())];
+  while (out.length < max && it.eatRaw(",")) out.push(it.toInt(it.evalExpr()));
+  return out;
+}
+
+/** Lit « [ecran,] x1,y1,x2,y2 » -> { base, v:[x1,y1,x2,y2] } (base = null si omis). */
+function screenAnd4(it) {
+  const t = it.peek();
+  if (t && (t.code === T.PHYSIC || t.code === T.LOGIC)) {
+    const base = screenOperand(it);
+    it.expectRaw(",");
+    return { base, v: readN(it, 4) };
+  }
+  const v = readN(it, 5);
+  if (v.length === 5) return { base: screenAddr(it, v[0]), v: v.slice(1) };
+  if (v.length === 4) return { base: null, v };
+  it.err(ERR.SYNTAX);
+}
+
+/** Copie un rectangle entre deux vues pixel, avec clipping (BASIC.S `scalc`). */
+function copyRectPixels(it, srcBase, dstBase, sx, sy, w, h, dx, dy) {
+  if (sx < 0) { dx -= sx; w += sx; sx = 0; }
+  if (sy < 0) { dy -= sy; h += sy; sy = 0; }
+  if (sx + w > PIXEL_W) w = PIXEL_W - sx;
+  if (sy + h > PIXEL_H) h = PIXEL_H - sy;
+  if (dx < 0) { sx -= dx; w += dx; dx = 0; }
+  if (dy < 0) { sy -= dy; h += dy; dy = 0; }
+  if (dx + w > PIXEL_W) w = PIXEL_W - dx;
+  if (dy + h > PIXEL_H) h = PIXEL_H - dy;
+  if (w <= 0 || h <= 0) return;
+  const src = pixelView(it, srcBase);
+  const dst = pixelView(it, dstBase);
+  // même écran : tampon intermédiaire pour gérer les chevauchements
+  const same = srcBase === dstBase;
+  const cols = new Uint8Array(w * h);
+  const tch = same ? new Uint8Array(w * h) : null;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      cols[y * w + x] = src.get(sx + x, sy + y);
+      if (same) tch[y * w + x] = src.touched(sx + x, sy + y);
+    }
+  }
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      dst.set(dx + x, dy + y, cols[i], same ? tch[i] : src.touched(sx + x, sy + y));
+    }
+  }
+  dst.bump();
+}
+
+/** REDUCE : 1re position source dont la case d'arrivée vaut k (table `tab_x`). */
+function reduceMap(srcLen, dstLen) {
+  const map = new Uint16Array(dstLen);
+  let last = 0;
+  let idx = 1;
+  for (let s = 1; s < srcLen && idx < dstLen; s++) {
+    const d = Math.floor((s * dstLen) / srcLen);
+    if (d !== last) { map[idx++] = s; last = d; }
+  }
+  while (idx < dstLen) map[idx++] = srcLen - 1;   // agrandissement : bord
+  return map;
+}
+
+/** ZOOM : plus proche voisin (k * srcLen / dstLen). */
+function zoomMap(srcLen, dstLen) {
+  const map = new Uint16Array(dstLen);
+  for (let k = 0; k < dstLen; k++) map[k] = Math.floor((k * srcLen) / dstLen);
+  return map;
+}
+
+/** Met à l'échelle un rectangle source vers un rectangle destination. */
+function scalePixels(it, srcBase, sx, sy, sw, sh, dstBase, dx, dy, dw, dh, mapX, mapY) {
+  const src = pixelView(it, srcBase);
+  const cols = new Uint8Array(sw * sh);
+  const tch = new Uint8Array(sw * sh);
+  for (let y = 0; y < sh; y++) {
+    for (let x = 0; x < sw; x++) {
+      cols[y * sw + x] = src.get(sx + x, sy + y);
+      tch[y * sw + x] = src.touched(sx + x, sy + y);
+    }
+  }
+  const dst = pixelView(it, dstBase);
+  for (let y = 0; y < dh; y++) {
+    const Y = dy + y;
+    if (Y < 0 || Y >= PIXEL_H) continue;
+    const row = mapY[y] * sw;
+    for (let x = 0; x < dw; x++) {
+      const X = dx + x;
+      if (X < 0 || X >= PIXEL_W) continue;
+      dst.set(X, Y, cols[row + mapX[x]], tch[row + mapX[x]]);
+    }
+  }
+  dst.bump();
+}
+
+/**
+ * SCREEN COPY [ec1[,x1,y1,x2,y2] TO ec2[,x3,y3]] — copie d'écran ou de zone
+ * (BASIC.S `scrcopy`/`scalc`). Sans argument : LOGIC -> PHYSIC (forme courte
+ * STAS). Les écrans peuvent être LOGIC/PHYSIC ou une banque SCREEN.
+ */
 function doScreenCopy(it) {
   const io = it.io;
   if (!io.physic) it.err(ERR.GFX_MODE);
-  let src = "logic", dst = "physic";      // SCREEN COPY seul = logic -> physic
-  if (!it.atEos()) {
-    src = screenRef(it);
-    if (!it.eat(T.TO)) it.err(ERR.SYNTAX);
-    dst = screenRef(it);
+  if (it.atEos()) {
+    copyRectPixels(it, MEM_LOGIC, MEM_PHYSIC, 0, 0, PIXEL_W, PIXEL_H, 0, 0);
+    io.asciiCache = null;
+    return;
   }
-  const S = src === "physic" ? io.physic : io.logic;
-  const D = dst === "physic" ? io.physic : io.logic;
-  if (S !== D) D.copyFrom(S);
+  const srcBase = screenOperand(it);
+  let rect = null;
+  if (it.eatRaw(",")) {
+    const x1 = it.toInt(it.evalExpr()); it.expectRaw(",");
+    const y1 = it.toInt(it.evalExpr()); it.expectRaw(",");
+    const x2 = it.toInt(it.evalExpr()); it.expectRaw(",");
+    const y2 = it.toInt(it.evalExpr());
+    rect = { x1, y1, x2, y2 };
+  }
+  if (!it.eat(T.TO)) it.err(ERR.SYNTAX);
+  const dstBase = screenOperand(it);
+  let x3 = 0;
+  let y3 = 0;
+  if (it.eatRaw(",")) {
+    x3 = it.toInt(it.evalExpr()); it.expectRaw(",");
+    y3 = it.toInt(it.evalExpr());
+  } else if (rect) {
+    it.err(ERR.SYNTAX);              // copie de zone : position requise
+  }
+  const w = rect ? rect.x2 - rect.x1 : PIXEL_W;
+  const h = rect ? rect.y2 - rect.y1 : PIXEL_H;
+  if (w <= 0 || h <= 0) it.err(ERR.FON_CALL);
+  copyRectPixels(it, srcBase, dstBase, rect ? rect.x1 : 0, rect ? rect.y1 : 0, w, h, x3, y3);
   io.asciiCache = null;
+}
+
+/**
+ * REDUCE [ecran] TO [ecran,]x1,y1,x2,y2 — réduit TOUT l'écran source dans le
+ * rectangle d'arrivée (SPRITES.S `reduce:` : table `tab_x` = premier pixel
+ * source de chaque case). Défaut source = LOGIC ; défaut arrivée = PHYSIC
+ * (l'original visait le décor des sprites, non modélisé ici).
+ */
+function doReduce(it) {
+  let srcBase;
+  if (it.peek()?.code === T.TO) {
+    it.next();
+    srcBase = MEM_LOGIC;
+  } else {
+    srcBase = screenOperand(it);
+    if (!it.eat(T.TO)) it.err(ERR.SYNTAX);
+  }
+  let dstBase = null;
+  let v;
+  const t = it.peek();
+  if (t && (t.code === T.PHYSIC || t.code === T.LOGIC)) {
+    dstBase = screenOperand(it);
+    it.expectRaw(",");
+    v = readN(it, 4);
+  } else {
+    v = readN(it, 5);
+    if (v.length === 5) { dstBase = screenAddr(it, v[0]); v = v.slice(1); }
+    else if (v.length !== 4) it.err(ERR.SYNTAX);
+  }
+  if (dstBase == null) dstBase = it.io.autoback ? MEM_PHYSIC : MEM_LOGIC;
+  const [x1, y1, x2, y2] = v;
+  if (x1 < 0 || x1 >= PIXEL_W || y1 < 0 || y1 >= PIXEL_H) it.err(ERR.FON_CALL);
+  if (x2 < 0 || x2 >= PIXEL_W || y2 < 0 || y2 >= PIXEL_H) it.err(ERR.FON_CALL);
+  const dw = x2 - x1;
+  const dh = y2 - y1;
+  if (dw <= 0 || dh <= 0) it.err(ERR.FON_CALL);
+  scalePixels(it, srcBase, 0, 0, PIXEL_W, PIXEL_H, dstBase, x1, y1, dw, dh,
+    reduceMap(PIXEL_W, dw), reduceMap(PIXEL_H, dh));
+  it.io.asciiCache = null;
+}
+
+/**
+ * ZOOM [ecran,]x1,y1,x2,y2 TO [ecran,]x3,y3,x4,y4 — agrandit un rectangle
+ * (SPRITES.S `zoom:` ; plus proche voisin, TX2 >= TX1 et TY2 >= TY1).
+ * Défaut source = LOGIC ; défaut arrivée = PHYSIC.
+ */
+function doZoom(it) {
+  const a = screenAnd4(it);
+  if (!it.eat(T.TO)) it.err(ERR.SYNTAX);
+  const b = screenAnd4(it);
+  const [x1, y1, x2, y2] = a.v;
+  const [x3, y3, x4, y4] = b.v;
+  for (const [X, Y] of [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]) {
+    if (X < 0 || X >= PIXEL_W || Y < 0 || Y >= PIXEL_H) it.err(ERR.FON_CALL);
+  }
+  const sw = x2 - x1;
+  const sh = y2 - y1;
+  const dw = x4 - x3;
+  const dh = y4 - y3;
+  if (sw <= 0 || sh <= 0 || dw <= 0 || dh <= 0) it.err(ERR.FON_CALL);
+  if (dw < sw || dh < sh) it.err(ERR.FON_CALL);   // ZOOM agrandit
+  const srcBase = a.base ?? MEM_LOGIC;
+  const dstBase = b.base ?? (it.io.autoback ? MEM_PHYSIC : MEM_LOGIC);
+  scalePixels(it, srcBase, x1, y1, sw, sh, dstBase, x3, y3, dw, dh,
+    zoomMap(sw, dw), zoomMap(sh, dh));
+  it.io.asciiCache = null;
 }
 
 function doAutoback(it) {
@@ -1740,6 +1941,9 @@ export const EXT_INSTRUCTIONS = new Map([
   [SUB.SETMARK, doSetMark],
   [SUB.SETPAINT, doSetPaint],
   [SUB.SETPATTERN, doSetPattern],
+  [SUB.SETWRITE, doGrWriting],
+  [SUB.REDUCE, doReduce],
+  [SUB.ZOOM, doZoom],
   [SUB.PALETTE, doPalette],
   [SUB.GETPALETTE, doGetPalette],
   [SUB.SHIFT, doShift],
