@@ -24,6 +24,7 @@ import {
   setPaletteWord, getPaletteWord,
   startShift, stopShift, startFade,
 } from "./palette.js";
+import { doAppear, bankPalette } from "./screens.js";
 
 // --- petits combinateurs ---------------------------------------------------
 const num1 = (it) => it.toNum(it.args(1, 1)[0]);
@@ -273,22 +274,9 @@ function doPalette(it) {
   }
 }
 
-/** Lit les 16 mots de palette d'une banque écran (offset 32000, gros-boutistes). */
-function readBankPalette(it, n) {
-  const b = it.io.banks.get(n);
-  if (!b) it.err(ERR.BANK_NOT_RES);                       // 44
-  if (b.kind !== "screen" && b.kind !== "datascreen") it.err(ERR.BANK_NOT_SCR);
-  const out = new Array(16);
-  for (let i = 0; i < 16; i++) {
-    const off = 32000 + i * 2;
-    out[i] = (((b.data[off] ?? 0) << 8) | (b.data[off + 1] ?? 0)) & 0xffff;
-  }
-  return out;
-}
-
 /** GET PALETTE(n) — charge la palette de l'écran de la banque n (`getpalet`). */
 function doGetPalette(it) {
-  const words = readBankPalette(it, it.toInt(it.args(1, 1)[0]));
+  const words = bankPalette(it, it.toInt(it.args(1, 1)[0]));
   for (let i = 0; i < 16; i++) setPaletteST(it, i, words[i]);
 }
 
@@ -330,7 +318,7 @@ function doFade(it) {
   const t = it.peek();
   if (t && t.code === T.TO) {                           // FADE vitesse TO image#
     it.next();
-    startFade(it.io, speed, readBankPalette(it, it.toInt(it.evalExpr())), 0xffff);
+    startFade(it.io, speed, bankPalette(it, it.toInt(it.evalExpr())), 0xffff);
     return;
   }
   if (!it.eatRaw(",")) it.err(ERR.SYNTAX);
@@ -1701,6 +1689,7 @@ export const EXT_INSTRUCTIONS = new Map([
   [SUB.GETPALETTE, doGetPalette],
   [SUB.SHIFT, doShift],
   [SUB.FADE, doFade],
+  [SUB.APPEAR, doAppear],
   [SUB.WINDOPEN, doWindOpen],
   [SUB.WINDOW, doWindow],
   [SUB.QWINDOW, doQWindow],

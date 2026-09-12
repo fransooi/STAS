@@ -22,16 +22,16 @@ raises STOS error **20** (`Function not implemented`), per
 | Category | Count |
 | --- | ---: |
 | Distinct tokenized keyword forms | **341** |
-| Implemented (handler present) | **215** |
-| Tokenized, **not** implemented → error 20 | **126** |
+| Implemented (handler present) | **216** |
+| Tokenized, **not** implemented → error 20 | **125** |
 | Manual entries **not tokenized at all** | **2** |
 
 Of the 210 "implemented" forms, 7 are pure structural markers (`TO`, `STEP`,
 `THEN`, `NEXT`, `WEND`, `UNTIL`, `ELSE`), leaving **≈ 203 distinct STOS
 features that actually run today**.
 
-> Iterations 1–8 landed: the count moved from 124 → **215** implemented
-> (217 → 126 missing).
+> Iterations 1–8 landed: the count moved from 124 → **216** implemented
+> (217 → 125 missing).
 
 **The token table is *almost* complete:** only **`PACK`** and **`UNPACK`**
 (screen pack/unpack) from the reference card have no token. Everything else is
@@ -173,8 +173,15 @@ palette at offset 32000), and the two interrupt animations `SHIFT`/`SHIFT OFF`
 The live palette is read by both console and canvas renderers. Faithful to
 `BASIC.S` (`color`/`colorf`/`s`/`fde`/`colshift`) and `SPRITES.S`
 (`fade`/`shifter`/`shifton`), Hardware Spec §3.2 (9-bit nibble-aligned words).
-Still open: `APPEAR`, screen effects (`ZOOM`, `REDUCE`, `PACK`, `UNPACK`,
-`SCREEN` area copy) and `GRWRITING`.
+
+✅ **`APPEAR` (iteration 8).** Faithful to `SPRITES.S` (`appear:` + the
+80-entry `tappear` table): the source screen is copied to PHYSIC one pixel at
+a time, stepping by a stride coprime with 64000 so the image materialises over
+~30 rendered frames. Effects 73–80 use even strides and stop early (partial
+image), exactly as the original.
+
+Still open: screen effects (`ZOOM`, `REDUCE`, `PACK`, `UNPACK`, `SCREEN` area
+copy) and `GRWRITING`.
 
 ### 3.7 Sprites & animation
 - `SPRITE n,x,y,p`, `UPDATE`, `FREEZE`, `OFF`, `MOVE ON|OFF|X|Y`, `MOVEON`
@@ -299,8 +306,8 @@ Ranked by value ÷ effort, assuming the console/canvas target:
    coordinate conversions, `INVERSE`/`UNDER`/`SHADE`/`WRITING`, `SQUARE`.
 4. ◑ **Primitives + palette done (iterations 6–8)** — Graphics V2: arcs/pies,
    `POLYGON`/`POLYLINE`/`POLYMARK`, `POINT`, `CLIP`, `SET LINE`/`MARK`/`PAINT`,
-   `DIVX`/`DIVY`, `COLOUR`/`PALETTE`/`GET PALETTE`/`SHIFT`/`FADE`. (`APPEAR` and
-   screen effects still open.)
+   `DIVX`/`DIVY`, `COLOUR`/`PALETTE`/`GET PALETTE`/`SHIFT`/`FADE`, `APPEAR`.
+   (Screen effects still open.)
 5. ✅ **Done (iteration 4)** — text windows (borders, relative coordinates,
    activation).
 6. **Sprite runtime** — wire `stas-sprites` to `SPRITE`/`MOVE`/`ANIM`/

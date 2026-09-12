@@ -292,13 +292,13 @@ node packages/stas-core/...    # le cœur s'importe directement (ESM relatif)
 ## 12. État actuel & suite
 
 Voir `IMPLEMENTATION-STATUS.md` pour le détail chiffré (dernier connu :
-**215 implémentés / 126 restants**). Fait : langage (maths/chaînes/système),
+**216 implémentés / 125 restants**). Fait : langage (maths/chaînes/système),
 erreurs (`ON ERROR`/`RESUME`/`ERRN`/`ERRL`), mémoire (banques, `PEEK`/`POKE`,
 `VARPTR`, plans ST), fenêtres texte, attributs texte, graphisme V2 (primitives,
-palette `COLOUR`/`PALETTE`/`GET PALETTE`/`SHIFT`/`FADE`).
+palette `COLOUR`/`PALETTE`/`GET PALETTE`/`SHIFT`/`FADE`, `APPEAR`).
 
 **Reste, par ordre suggéré :**
-1. **Effets écran** — `APPEAR`, `ZOOM`, `REDUCE`, `PACK`, `UNPACK`, copie de zone.
+1. **Effets écran** — `ZOOM`, `REDUCE`, `PACK`, `UNPACK`, copie de zone.
 2. **Sprites** — brancher `stas-sprites` au runtime (`SPRITE`, `MOVE`, `ANIM`, …).
 3. **Musique** — `MUSIC`, `VOICE`, `VOLUME`, `TEMPO`, `ENVEL`, `PLAY` audible.
 4. **Menus**, **souris/joystick**, **fichiers/dossiers**, **éditeur**

@@ -1901,3 +1901,41 @@ test("pumpAnims : avance selon le temps réel (1 trame = 20 ms)", async () => {
   pumpAnims(stas.io);
   assert.equal(getPaletteWord(stas.io, 2), 0x200); // ancien reg[1]
 });
+
+// ---------------------------------------------------------------------------
+//  APPEAR
+// ---------------------------------------------------------------------------
+
+test("APPEAR : révèle un écran de banque sur le PHYSIC", async () => {
+  const stas = new Stas({});
+  stas.loadSource([
+    "10 mode 0",
+    "20 reserve as screen 5",
+    "30 poke start(5),4", // pixel (5,0) : plan 0, bit 2 -> couleur 1
+    "40 appear 5,1",
+  ]);
+  await stas.run();
+  assert.equal(stas.physic.get(5, 0), 1);
+  assert.equal(stas.physic.isTouched(5, 0), 1);
+  assert.equal(stas.physic.get(6, 0), 0);
+  assert.equal(stas.physic.isTouched(200, 100), 1); // pas copremier = tout révélé
+});
+
+test("APPEAR : effet pair (73..80) ne révèle qu'un pixel sur deux", async () => {
+  const stas = new Stas({});
+  stas.loadSource([
+    "10 mode 0",
+    "20 reserve as screen 5",
+    "30 poke start(5),4",
+    "40 appear 5,73", // pas = 2 : la suite s'arrête à la moitié
+  ]);
+  await stas.run();
+  assert.equal(stas.physic.isTouched(0, 0), 1);
+  assert.equal(stas.physic.isTouched(1, 0), 0); // index impair jamais visité
+  assert.equal(stas.physic.isTouched(100, 0), 1);
+});
+
+test("APPEAR : effet hors 1..80 = erreur 13, banque absente = erreur 44", async () => {
+  await expectError(["10 mode 0", "20 reserve as screen 5", "30 appear 5,81"], ERR.FON_CALL);
+  await expectError(["10 mode 0", "20 appear 5,1"], ERR.BANK_NOT_RES);
+});

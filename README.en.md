@@ -223,7 +223,9 @@ palette (`COLOUR i,$RGB`, `PALETTE …`, `COLOUR(i)` to read one back — always
 masked to `$777`, `GET PALETTE(n)` from a bank screen). Palette words are the
 ST 9-bit `R-G-B` format and both renderers read the live palette, so `COLOUR`
 repaints the screen immediately. `SHIFT` rotates the palette and `FADE` fades
-it (interrupt-style animations, one step every `speed` frames).
+it (interrupt-style animations, one step every `speed` frames). `APPEAR`
+reveals a bank screen onto PHYSIC pixel by pixel (the `tappear` coprime
+stride), and `GET PALETTE(n)` loads a bank screen's palette.
 `PLAY` is accepted but silent; `FLASH`/`KEY`/`CLICK` `ON|OFF`, `HIDE` and
 `SHOW` are no-ops.
 
