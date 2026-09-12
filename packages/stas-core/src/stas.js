@@ -79,6 +79,12 @@ export class Stas {
       asciiCache: null,    // cache du converter graphique -> ascii
       sprites: [],         // plan sprites (au-dessus de tout)
       spriteVersion: 0,
+      mode: 0,             // MODE courant (DIVX / DIVY)
+      clip: null,          // CLIP {x1,y1,x2,y2}
+      lineStyle: null,     // SET LINE {mask,thick,begin,end}
+      mark: null,          // SET MARK {type,height}
+      paint: null,         // SET PAINT {type,style,perimeter}
+      pattern: null,       // SET PATTERN (motif utilisateur)
     };
     this.io.mem = new Memory(this.io);
     this.io.windows = new WindowManager(this.io);

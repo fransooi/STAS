@@ -219,7 +219,10 @@ Volt.A) sans que le BASIC n'y voie une différence.
 forme tortue `DRAW "r10 d20"`), `BOX`, `BAR`, `RBOX`, `RBAR` (coins
 arrondis), `CIRCLE`, `ELLIPSE`, `PAINT`, `INK n` (couleur de tracé gfx, le
 texte garde son `PEN`), `CENTRE`, `RESERVE AS SCREEN n` + `START(n)`,
-affectation `LOGIC=`/`PHYSIC=`. `PLAY` est accepté mais silencieux ;
+affectation `LOGIC=`/`PHYSIC=`. V2 adds `ARC`/`EARC`/`EPIE`/`PIE` (angles
+en dixièmes de degré, 0–3600), `POLYGON`/`POLYLINE`/`POLYMARK`,
+`POINT(x,y)`, `CLIP`, `SET LINE`/`SET MARK`/`SET PAINT`/`SET PATTERN`, and
+`DIVX`/`DIVY`. `PLAY` est accepté mais silencieux ;
 `FLASH`/`KEY`/`CLICK` `ON|OFF`, `HIDE`, `SHOW` sont des no-ops.
 
 ### Mémoire — banques, PEEK / POKE

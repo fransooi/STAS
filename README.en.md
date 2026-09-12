@@ -216,6 +216,9 @@ the BASIC seeing any difference.
 form `DRAW "r10 d20"`), `BOX`, `BAR`, `RBOX`, `RBAR` (rounded corners),
 `CIRCLE`, `ELLIPSE`, `PAINT`, `INK n` (gfx ink color, text keeps its `PEN`),
 `CENTRE`, `RESERVE AS SCREEN n` + `START(n)`, `LOGIC=`/`PHYSIC=` assignment.
+V2 adds `ARC`/`EARC`/`EPIE`/`PIE` (angles in tenths of a degree, 0–3600),
+`POLYGON`/`POLYLINE`/`POLYMARK`, `POINT(x,y)`, `CLIP`,
+`SET LINE`/`SET MARK`/`SET PAINT`/`SET PATTERN`, and `DIVX`/`DIVY`.
 `PLAY` is accepted but silent; `FLASH`/`KEY`/`CLICK` `ON|OFF`, `HIDE` and
 `SHOW` are no-ops.
 

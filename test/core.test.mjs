@@ -605,7 +605,7 @@ test("next/wend/until orphelins = erreurs 23/25/27", async () => {
 
 test("fonctions/instructions non implémentées = erreur 20", async () => {
   await expectError(["10 call 0"], ERR.NOT_IMPL);
-  await expectError(["10 print point(0,0)"], ERR.NOT_IMPL);
+  await expectError(["10 print fkey"], ERR.NOT_IMPL);
 });
 
 test('"STAS RUN" à l\'invite exécute le programme', async () => {
@@ -1640,4 +1640,72 @@ test("CURS OFF : masque le curseur", async () => {
   stas.loadSource(["10 curs off"]);
   await stas.run();
   assert.equal(stas.buffer.cursorVisible, false);
+});
+
+// ---------------------------------------------------------------------------
+//  §3.6 — graphisme V2
+// ---------------------------------------------------------------------------
+
+test("POINT : couleur d'un pixel", async () => {
+  const stas = new Stas({});
+  stas.loadSource([
+    "10 paper 0", "20 mode 0", "30 plot 10,10,5",
+    "40 print point(10,10)", "50 print point(0,0)",
+  ]);
+  await stas.run();
+  assert.deepEqual(out(stas.buffer.toText()), ["5", "0"]);
+});
+
+test("CLIP : limite le tracé", async () => {
+  const stas = new Stas({});
+  stas.loadSource([
+    "10 paper 0", "20 mode 0", "30 clip 0,0 to 9,9",
+    "40 plot 5,5,3", "50 plot 20,20,3",
+  ]);
+  await stas.run();
+  assert.equal(stas.io.logic.get(5, 5), 3);
+  assert.equal(stas.io.logic.get(20, 20), 0);
+});
+
+test("SET LINE : épaisseur", async () => {
+  const stas = new Stas({});
+  stas.loadSource([
+    "10 paper 0", "20 mode 0", "30 ink 1",
+    "40 set line $ffff,3,0,0", "50 line 10,10 to 10,20",
+  ]);
+  await stas.run();
+  assert.equal(stas.io.logic.get(10, 15), 1);
+  assert.equal(stas.io.logic.get(11, 15), 1);
+  assert.equal(stas.io.logic.get(9, 15), 1);
+});
+
+test("POLYLINE / POLYGON / POLYMARK", async () => {
+  const stas = new Stas({});
+  stas.loadSource([
+    "10 paper 0", "20 mode 0", "30 ink 2",
+    "40 polyline 0,0 to 10,0 to 10,10",
+    "50 polygon 20,0 to 30,0 to 30,10",
+    "60 set mark 1,0",
+    "70 polymark 40,5;45,5",
+  ]);
+  await stas.run();
+  assert.equal(stas.io.logic.get(5, 0), 2);
+  assert.equal(stas.io.logic.get(10, 5), 2);
+  assert.equal(stas.io.logic.get(25, 5), 2);
+  assert.equal(stas.io.logic.get(40, 5), 2);
+});
+
+test("DIVX / DIVY selon MODE", async () => {
+  assert.deepEqual(await runOut(["10 mode 0", "20 print divx;divy"]), ["22"]);
+  assert.deepEqual(await runOut(["10 mode 1", "20 print divx;divy"]), ["12"]);
+  assert.deepEqual(await runOut(["10 mode 2", "20 print divx;divy"]), ["11"]);
+});
+
+test("ARC : angles 0..3600, hors bornes = erreur 13", async () => {
+  await expectError(["10 mode 0", "20 arc 100,100,50,0,3700"], ERR.FON_CALL);
+  const stas = new Stas({});
+  stas.loadSource(["10 paper 0", "20 mode 0", "30 ink 1", "40 arc 100,100,50,0,1800"]);
+  await stas.run();
+  assert.equal(stas.io.logic.get(150, 100), 1);
+  assert.equal(stas.io.logic.get(100, 50), 1);
 });

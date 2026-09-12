@@ -22,16 +22,16 @@ raises STOS error **20** (`Function not implemented`), per
 | Category | Count |
 | --- | ---: |
 | Distinct tokenized keyword forms | **341** |
-| Implemented (handler present) | **195** |
-| Tokenized, **not** implemented → error 20 | **146** |
+| Implemented (handler present) | **210** |
+| Tokenized, **not** implemented → error 20 | **131** |
 | Manual entries **not tokenized at all** | **2** |
 
-Of the 195 "implemented" forms, 7 are pure structural markers (`TO`, `STEP`,
-`THEN`, `NEXT`, `WEND`, `UNTIL`, `ELSE`), leaving **≈ 188 distinct STOS
+Of the 210 "implemented" forms, 7 are pure structural markers (`TO`, `STEP`,
+`THEN`, `NEXT`, `WEND`, `UNTIL`, `ELSE`), leaving **≈ 203 distinct STOS
 features that actually run today**.
 
-> Iterations 1–5 landed: the count moved from 124 → **195** implemented
-> (217 → 146 missing).
+> Iterations 1–6 landed: the count moved from 124 → **210** implemented
+> (217 → 131 missing).
 
 **The token table is *almost* complete:** only **`PACK`** and **`UNPACK`**
 (screen pack/unpack) from the reference card have no token. Everything else is
@@ -40,7 +40,7 @@ tables, not the tokenizer.
 
 ---
 
-## 2. Implemented today (195 forms)
+## 2. Implemented today (210 forms)
 
 **Control flow & structures**
 `GOTO`, `GOSUB`, `RETURN`, `POP`, `FOR…TO…STEP…NEXT`, `WHILE…WEND`,
@@ -73,6 +73,11 @@ printed precision of reals.
 `FLIP$`, `INPUT$(n)`, `USING format$;…` (fields `~ # + - . ; ^`, ported
 from BASIC.S), `FREE`,
 `TIME$`, `DATE$` (readable and assignable), `LANGUAGE`.
+
+**Graphics V2**
+`ARC`, `EARC`, `EPIE`, `PIE` (angles in tenths of a degree, 0-3600), `POLYGON`
+(filled), `POLYLINE`, `POLYMARK`, `POINT(x,y)`, `CLIP`, `SET LINE`
+(mask/thickness), `SET MARK`, `SET PAINT`, `SET PATTERN`, `DIVX`/`DIVY`.
 
 **Text attributes & conversions**
 `SCRN(x,y)`, `XCURS`/`YCURS`, `XTEXT`/`YTEXT`/`XGRAPHIC`/`YGRAPHIC`,
@@ -111,7 +116,7 @@ HEX$ BIN$`.
 
 ---
 
-## 3. Remaining work (146 tokenized forms → error 20)
+## 3. Remaining work (131 tokenized forms → error 20)
 
 Grouped by subsystem, not by token table, so it maps to actual work items.
 
@@ -156,15 +161,13 @@ styles (`SET CURS`, `CURS`), `INVERSE`/`SHADE`/`UNDER`/`WRITING`, `SQUARE`,
 `SCRN`, the `*TEXT`/`*GRAPHIC` conversions (see §3.4).
 
 ### 3.6 Graphics V2
-- Primitives: `ARC`, `EARC`, `EPIE`, `PIE`, `POLYGON`, `POLYLINE`, `POLYMARK`
-- `POINT(x,y)`
-- `CLIP`
-- Styles: `SET LINE`, `SET MARK`, `SET PATTERN`, `SET PAINT`, `GRWRITING`
-- `DIVX`, `DIVY`
-- Colour: `COLOUR index,$RGB` / `COLOUR(index)`, `PALETTE`, `GET PALETTE`,
-  `FADE`, `SHIFT`
-- Screens: `APPEAR`, `ZOOM`, `REDUCE`, `PACK`, `UNPACK` *(last two not even
-  tokenized)*, `SCREEN` area copy
+✅ **Primitives done (iteration 6).** `ARC`, `EARC`, `EPIE`, `PIE`,
+`POLYGON` (filled), `POLYLINE`, `POLYMARK`, `POINT(x,y)`, `CLIP`, `SET LINE`
+(mask + thickness), `SET MARK`, `SET PAINT`, `SET PATTERN`, `DIVX`, `DIVY`.
+Angles are in **tenths of a degree** (0-3600), faithful to `BASIC.S`.
+Still open: colour/palette (`COLOUR`, `PALETTE`, `GET PALETTE`, `FADE`,
+`SHIFT`), screen effects (`APPEAR`, `ZOOM`, `REDUCE`, `PACK`, `UNPACK`,
+`SCREEN` area copy) and `GRWRITING`.
 
 ### 3.7 Sprites & animation
 - `SPRITE n,x,y,p`, `UPDATE`, `FREEZE`, `OFF`, `MOVE ON|OFF|X|Y`, `MOVEON`
@@ -276,9 +279,9 @@ Ranked by value ÷ effort, assuming the console/canvas target:
    real `ERRN`/`ERRL`, `BREAK ON|OFF` toggle. (`DEF FN` still open.)
 3. ✅ **Done (iteration 5)** — text/console fidelity: `SCRN`, cursor and
    coordinate conversions, `INVERSE`/`UNDER`/`SHADE`/`WRITING`, `SQUARE`.
-4. **Graphics V2 primitives & styles** — `ARC`/`EARC`/`EPIE`/`PIE`,
-   `POLYGON`/`POLYLINE`/`POLYMARK`, `POINT`, `CLIP`, `SET LINE`/`MARK`/
-   `PATTERN`, `DIVX`/`DIVY`, colour/palette commands.
+4. ◑ **Primitives done (iteration 6)** — Graphics V2: arcs/pies, `POLYGON`/
+   `POLYLINE`/`POLYMARK`, `POINT`, `CLIP`, `SET LINE`/`MARK`/`PAINT`,
+   `DIVX`/`DIVY`. (Colour/palette and screen effects still open.)
 5. ✅ **Done (iteration 4)** — text windows (borders, relative coordinates,
    activation).
 6. **Sprite runtime** — wire `stas-sprites` to `SPRITE`/`MOVE`/`ANIM`/

@@ -736,6 +736,7 @@ function doMode(it) {
   // flag : fidélité STOS, MODE redimensionne le buffer.
   if (!it.io.lockTextRes) it.buffer.resize(cols, rows); // grille texte = grille ascii
   const io = it.io;
+  io.mode = n;                              // DIVX / DIVY en dépendent
   io.physic = new PixelScreen();            // MODE réinitialise les écrans
   io.logic = new PixelScreen();
   io.gfxActive = true;
@@ -775,20 +776,40 @@ function doCls(it) {
 // converter graphique -> ascii fait la projection sur la grille texte au
 // moment du rendu.
 
+// CLIP / SET LINE courants, posés par targets() avant chaque primitive.
+let drawClip = null;
+let drawStyle = { mask: 0xffff, thick: 1 };
+let drawMark = { type: 1, height: 1 };
+
 function targets(it) {
   const io = it.io;
   if (!io.gfxActive) it.err(ERR.GFX_MODE);   // instruction graphique hors MODE = 88
+  drawClip = io.clip ?? null;
+  drawStyle = io.lineStyle ?? { mask: 0xffff, thick: 1 };
+  drawMark = io.mark ?? { type: 1, height: 1 };
   return io.autoback ? [io.logic, io.physic] : [io.logic];
 }
 
-/** Encre de tracé courante : INK si donnée, sinon PEN (toute la scène). */
 function inkColor(it) {
   return it.io.gfx ? it.io.gfx.curPen
     : it.io.ink != null ? it.io.ink : it.buffer.curPen;
 }
 
+/** Un point, en respectant CLIP. */
 function putAll(tg, x, y, col) {
-  for (const s of tg) s.set(x | 0, y | 0, col);
+  const px = x | 0, py = y | 0;
+  if (drawClip && (px < drawClip.x1 || px > drawClip.x2 || py < drawClip.y1 || py > drawClip.y2)) return;
+  for (const s of tg) s.set(px, py, col);
+}
+
+/** Un point épais (SET LINE width). */
+function paintThick(tg, x, y, col) {
+  const t = Math.max(1, (drawStyle.thick | 0) || 1);
+  if (t === 1) { putAll(tg, x, y, col); return; }
+  const o = (t - 1) >> 1;
+  for (let dy = 0; dy < t; dy++) {
+    for (let dx = 0; dx < t; dx++) putAll(tg, x + dx - o, y + dy - o, col);
+  }
 }
 
 function optColor(it) {
@@ -809,8 +830,10 @@ function lineBres(tg, x0, y0, x1, y1, col) {
   let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
   let dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
   let err = dx + dy;
+  let n = 0;
   for (;;) {
-    putAll(tg, x0, y0, col);
+    if ((drawStyle.mask >> (n % 16)) & 1) paintThick(tg, x0, y0, col); // masque SET LINE
+    n++;
     if (x0 === x1 && y0 === y1) break;
     const e2 = 2 * err;
     if (e2 >= dy) { err += dy; x0 += sx; }
@@ -1048,6 +1071,212 @@ function doDraw(it) {
 // --- écrans PHYSIC/LOGIC : SWAP / COPY / AUTOBACK --------------------------
 
 /** Désignateur d'écran : PHYSIC | LOGIC (banques/BACK : M4). */
+// --- graphisme V2 : POINT, CLIP, SET LINE/MARK/PAINT, poly*, arcs ---------
+
+/** POINT(x,y) — couleur d'un pixel de l'écran logique. */
+function funcPoint(it) {
+  const io = it.io;
+  if (!io.gfxActive) it.err(ERR.GFX_MODE);
+  if (!it.eatRaw("(")) it.err(ERR.SYNTAX);
+  const x = it.toInt(it.evalExpr());
+  it.expectRaw(",");
+  const y = it.toInt(it.evalExpr());
+  it.expectRaw(")");
+  if (x < 0 || x >= 320 || y < 0 || y >= 200) it.err(ERR.FON_CALL);
+  return INT(io.logic.get(x, y));
+}
+
+/** CLIP OFF | CLIP x1,y1 TO x2,y2 */
+function doClip(it) {
+  const t = it.peek();
+  if (t && t.code === T.OFF) { it.next(); it.io.clip = null; return; }
+  if (t && t.code === T.ON) it.next();
+  const x1 = it.toInt(it.evalExpr());
+  it.expectRaw(",");
+  const y1 = it.toInt(it.evalExpr());
+  if (!it.eat(T.TO)) it.err(ERR.SYNTAX);
+  const x2 = it.toInt(it.evalExpr());
+  it.expectRaw(",");
+  const y2 = it.toInt(it.evalExpr());
+  if (x1 < 0 || y1 < 0 || x2 >= 320 || y2 >= 200 || x1 >= x2 || y1 >= y2) {
+    it.err(ERR.FON_CALL);
+  }
+  it.io.clip = { x1, y1, x2, y2 };
+}
+
+/** SET LINE mask,thick,begin,end — style de ligne (masque + épaisseur). */
+function doSetLine(it) {
+  const mask = it.toInt(it.evalExpr());
+  it.expectRaw(",");
+  const thick = it.toInt(it.evalExpr());
+  it.expectRaw(",");
+  const begin = it.toInt(it.evalExpr());
+  it.expectRaw(",");
+  const end = it.toInt(it.evalExpr());
+  it.io.lineStyle = {
+    mask: mask & 0xffff, thick: Math.max(1, thick | 0), begin: begin & 3, end: end & 3,
+  };
+}
+
+/** SET MARK type,height — marqueur de POLYMARK. */
+function doSetMark(it) {
+  const type = it.toInt(it.evalExpr());
+  it.expectRaw(",");
+  const height = it.toInt(it.evalExpr());
+  if (type < 1 || type > 6 || height < 0) it.err(ERR.FON_CALL);
+  it.io.mark = { type, height };
+}
+
+/** SET PAINT type,style,perimeter — style de remplissage. */
+function doSetPaint(it) {
+  const type = it.toInt(it.evalExpr());
+  it.expectRaw(",");
+  const style = it.toInt(it.evalExpr());
+  it.expectRaw(",");
+  const per = it.toInt(it.evalExpr());
+  if (type < 0 || type > 4 || style < 1 || style > 36 || per < 0 || per > 1) {
+    it.err(ERR.FON_CALL);
+  }
+  it.io.paint = { type, style, perimeter: per };
+}
+
+/** SET PATTERN adresse|a$ — motif utilisateur (mémorisé, non rendu). */
+function doSetPattern(it) {
+  it.io.pattern = it.evalExpr();
+}
+
+/** Liste de points « x,y TO x,y … » ou « x,y;x,y … ». */
+function readPolyPoints(it, sep) {
+  const pts = [];
+  for (;;) {
+    const x = it.toInt(it.evalExpr());
+    it.expectRaw(",");
+    const y = it.toInt(it.evalExpr());
+    pts.push([x, y]);
+    if (sep === ";") { if (!it.eatRaw(";")) break; }
+    else if (!it.eat(sep)) break;
+  }
+  if (pts.length < 2) it.err(ERR.SYNTAX);
+  return pts;
+}
+
+/** POLYLINE x1,y1 TO x2,y2 TO … */
+function doPolyline(it) {
+  const pts = readPolyPoints(it, T.TO);
+  const col = inkColor(it);
+  const tg = targets(it);
+  for (let i = 1; i < pts.length; i++) {
+    lineBres(tg, pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1], col);
+  }
+}
+
+/** Un marqueur (SET MARK) au point x,y. */
+function drawMarker(tg, x, y, col) {
+  const h = Math.max(0, drawMark.height | 0);
+  switch (drawMark.type) {
+    case 1: putAll(tg, x, y, col); break;
+    case 2:
+      for (let i = -h; i <= h; i++) { putAll(tg, x + i, y + i, col); putAll(tg, x + i, y - i, col); }
+      break;
+    case 3:
+      for (let i = -h; i <= h; i++) { putAll(tg, x + i, y, col); putAll(tg, x, y + i, col); }
+      break;
+    case 4:
+      for (let i = -h; i <= h; i++) {
+        putAll(tg, x + i, y - h, col); putAll(tg, x + i, y + h, col);
+        putAll(tg, x - h, y + i, col); putAll(tg, x + h, y + i, col);
+      }
+      break;
+    case 5:
+      for (let i = 0; i <= h; i++) {
+        putAll(tg, x + i, y - h + i, col); putAll(tg, x - i, y - h + i, col);
+        putAll(tg, x + i, y + h - i, col); putAll(tg, x - i, y + h - i, col);
+      }
+      break;
+    default:
+      for (let dy = -h; dy <= h; dy++) {
+        for (let dx = -h; dx <= h; dx++) putAll(tg, x + dx, y + dy, col);
+      }
+  }
+}
+
+/** POLYMARK x1,y1;x2,y2;… */
+function doPolymark(it) {
+  const pts = readPolyPoints(it, ";");
+  const tg = targets(it);
+  const col = inkColor(it);
+  for (const [x, y] of pts) drawMarker(tg, x, y, col);
+}
+
+/** POLYGON x1,y1 TO x2,y2 TO … (rempli). */
+function doPolygon(it) {
+  const pts = readPolyPoints(it, T.TO);
+  const col = inkColor(it);
+  const tg = targets(it);
+  let minY = Infinity, maxY = -Infinity;
+  for (const p of pts) { minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]); }
+  for (let y = minY; y <= maxY; y++) {
+    const xs = [];
+    for (let i = 0; i < pts.length; i++) {
+      const [x1, y1] = pts[i];
+      const [x2, y2] = pts[(i + 1) % pts.length];
+      if ((y1 <= y && y2 > y) || (y2 <= y && y1 > y)) {
+        xs.push(x1 + ((y - y1) * (x2 - x1)) / (y2 - y1));
+      }
+    }
+    xs.sort((a, b) => a - b);
+    for (let i = 0; i + 1 < xs.length; i += 2) {
+      hline(tg, Math.round(xs[i]), Math.round(xs[i + 1]), y, col);
+    }
+  }
+}
+
+/** ARC / PIE / EARC / EPIE — angles en dixièmes de degré (0..3600). */
+function arcDraw(tg, cx, cy, rx, ry, a1, a2, col, pie) {
+  if (a2 <= a1) a2 += 3600;
+  const point = (a) => {
+    const rad = (a / 10) * (Math.PI / 180);
+    return [Math.round(cx + rx * Math.cos(rad)), Math.round(cy - ry * Math.sin(rad))];
+  };
+  if (pie) {
+    for (let a = a1; a <= a2; a++) {
+      const [x, y] = point(a);
+      lineBres(tg, cx, cy, x, y, col);
+    }
+  } else {
+    let prev = null;
+    for (let a = a1; a <= a2; a += 2) {
+      const p = point(a);
+      if (prev) lineBres(tg, prev[0], prev[1], p[0], p[1], col);
+      prev = p;
+    }
+    const last = point(a2);
+    if (prev) lineBres(tg, prev[0], prev[1], last[0], last[1], col);
+  }
+}
+
+function doArcPie(it, pie, elliptical) {
+  const tg = targets(it);
+  const cx = it.toInt(it.evalExpr());
+  it.expectRaw(",");
+  const cy = it.toInt(it.evalExpr());
+  it.expectRaw(",");
+  const r1 = it.toInt(it.evalExpr());
+  it.expectRaw(",");
+  let r2 = r1;
+  if (elliptical) {
+    r2 = it.toInt(it.evalExpr());
+    it.expectRaw(",");
+  }
+  const a1 = it.toInt(it.evalExpr());
+  it.expectRaw(",");
+  const a2 = it.toInt(it.evalExpr());
+  if (r1 < 0 || r2 < 0 || a1 < 0 || a2 < 0 || a1 > 3600 || a2 > 3600) {
+    it.err(ERR.FON_CALL);
+  }
+  arcDraw(tg, cx, cy, r1, r2, a1, a2, inkColor(it), pie);
+}
+
 function screenRef(it) {
   const t = it.peek();
   if (t && t.code === T.PHYSIC) { it.next(); return "physic"; }
@@ -1109,6 +1338,9 @@ export const INSTRUCTIONS = new Map([
   [T.LINE, doLine],
   [T.DRAW, doDraw],
   [T.SWAP, doSwap],
+  [T.POLYLINE, doPolyline],
+  [T.POLYMARK, doPolymark],
+  [T.PIE, (it) => doArcPie(it, true, false)],
   [T.SCREEN_SWAP, doScreenSwap],
   [T.SCREEN_COPY, doScreenCopy],
 ]);
@@ -1314,6 +1546,15 @@ export const EXT_INSTRUCTIONS = new Map([
   [SUB.FIX, doFix],
   [SUB.SORT, doSort],
   [SUB.USING, (it) => printUsing(it)],
+  [SUB.ARC, (it) => doArcPie(it, false, false)],
+  [SUB.EARC, (it) => doArcPie(it, false, true)],
+  [SUB.EPIE, (it) => doArcPie(it, true, true)],
+  [SUB.POLYGON, doPolygon],
+  [SUB.CLIP, doClip],
+  [SUB.SETLINE, doSetLine],
+  [SUB.SETMARK, doSetMark],
+  [SUB.SETPAINT, doSetPaint],
+  [SUB.SETPATTERN, doSetPattern],
   [SUB.WINDOPEN, doWindOpen],
   [SUB.WINDOW, doWindow],
   [SUB.QWINDOW, doQWindow],
@@ -1446,6 +1687,7 @@ export const FUNC_TABLE = new Map([
   }],
   [T.INKEY, (it) => STR(it.inkey())],
   [T.SCRN, funcScrn],
+  [T.POINT, funcPoint],
   [T.SCANCODE, (it) => INT(it.io.scancode ? it.io.scancode() : 0)],
   [T.MID, (it) => {
     const [sv, av, lv] = it.args(2, 3);
@@ -1589,4 +1831,6 @@ export const EXTFUNC_TABLE = new Map([
   [FSUB.XGRAPHIC, (it) => INT(Math.round(num1(it) * (320 / it.buffer.width)))],
   [FSUB.YTEXT, (it) => INT(Math.floor(num1(it) / (200 / it.buffer.height)))],
   [FSUB.YGRAPHIC, (it) => INT(Math.round(num1(it) * (200 / it.buffer.height)))],
+  [FSUB.DIVX, (it) => INT(it.io.mode === 0 ? 2 : 1)],
+  [FSUB.DIVY, (it) => INT(it.io.mode === 2 ? 1 : 2)],
 ]);
