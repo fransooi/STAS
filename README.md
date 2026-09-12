@@ -221,9 +221,12 @@ arrondis), `CIRCLE`, `ELLIPSE`, `PAINT`, `INK n` (couleur de tracé gfx, le
 texte garde son `PEN`), `CENTRE`, `RESERVE AS SCREEN n` + `START(n)`,
 affectation `LOGIC=`/`PHYSIC=`. V2 adds `ARC`/`EARC`/`EPIE`/`PIE` (angles
 en dixièmes de degré, 0–3600), `POLYGON`/`POLYLINE`/`POLYMARK`,
-`POINT(x,y)`, `CLIP`, `SET LINE`/`SET MARK`/`SET PAINT`/`SET PATTERN`, and
-`DIVX`/`DIVY`. `PLAY` est accepté mais silencieux ;
-`FLASH`/`KEY`/`CLICK` `ON|OFF`, `HIDE`, `SHOW` sont des no-ops.
+`POINT(x,y)`, `CLIP`, `SET LINE`/`SET MARK`/`SET PAINT`/`SET PATTERN`,
+`DIVX`/`DIVY`, et la palette (`COLOUR i,$RGB`, `PALETTE …`, `COLOUR(i)` pour
+relire une entrée — toujours masquée à `$777`). Les mots de palette sont au
+format ST 9 bits `R-G-B` et les deux renderers lisent la palette vivante :
+un `COLOUR` repeint donc l'écran immédiatement. `PLAY` est accepté mais
+silencieux ; `FLASH`/`KEY`/`CLICK` `ON|OFF`, `HIDE`, `SHOW` sont des no-ops.
 
 ### Mémoire — banques, PEEK / POKE
 

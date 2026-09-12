@@ -40,7 +40,6 @@
  *  grille. Le plan texte, lui, reste à la résolution du buffer.
  */
 
-import { STOS_PALETTE } from "@stas/core";
 import { CanvasRenderer } from "./canvas-renderer.js";
 
 export class AalibRenderer {
@@ -176,6 +175,7 @@ export class AalibRenderer {
     const d = this._data;
     const col = p.colors;
     const tch = p.touched;
+    const palette = this.stas.palette; // palette vivante (COLOUR/PALETTE)
     const bw = W / cols;
     const bh = H / rows;
     const cnt = this._cnt;
@@ -196,7 +196,7 @@ export class AalibRenderer {
             if (tch[pi]) {
               const c = col[pi] & 15;
               cnt[c]++;
-              const pal = STOS_PALETTE[c];
+              const pal = palette[c];
               sum += (pal[0] + pal[1] + pal[2]) / 3;
               nt++;
               d[o] = pal[0];
@@ -230,9 +230,10 @@ export class AalibRenderer {
   /** Étape contraste : couleurs palette exactes + luminance gamma-boostée. */
   _boost(img) {
     const d = img.data;
+    const palette = this.stas.palette; // palette vivante (COLOUR/PALETTE)
     for (let i = 0; i < d.length; i++) {
       if (this._tch[i]) {
-        const pal = STOS_PALETTE[this._dom[i]];
+        const pal = palette[this._dom[i]];
         d[i].r = pal[0];
         d[i].g = pal[1];
         d[i].b = pal[2];

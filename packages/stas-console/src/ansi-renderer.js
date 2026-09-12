@@ -3,8 +3,6 @@
  *  Lit le buffer et repeint le terminal ; ne connaît rien au BASIC.
  */
 
-import { STOS_PALETTE } from "../../stas-core/index.js";
-
 export class AnsiRenderer {
   constructor(stas, { out = process.stdout } = {}) {
     this.stas = stas;
@@ -37,12 +35,12 @@ export class AnsiRenderer {
       for (let x = 0; x < b.width; x++) {
         const c = this.stas.cellAt(x, y);
         if (c.fg !== fg) {
-          const [r, g, bl] = STOS_PALETTE[c.fg & 15];
+          const [r, g, bl] = this.stas.palette[c.fg & 15];
           s += `\x1b[38;2;${r};${g};${bl}m`;
           fg = c.fg;
         }
         if (c.bg !== bg) {
-          const [r, g, bl] = STOS_PALETTE[c.bg & 15];
+          const [r, g, bl] = this.stas.palette[c.bg & 15];
           s += `\x1b[48;2;${r};${g};${bl}m`;
           bg = c.bg;
         }

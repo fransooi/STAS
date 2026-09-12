@@ -218,7 +218,10 @@ form `DRAW "r10 d20"`), `BOX`, `BAR`, `RBOX`, `RBAR` (rounded corners),
 `CENTRE`, `RESERVE AS SCREEN n` + `START(n)`, `LOGIC=`/`PHYSIC=` assignment.
 V2 adds `ARC`/`EARC`/`EPIE`/`PIE` (angles in tenths of a degree, 0–3600),
 `POLYGON`/`POLYLINE`/`POLYMARK`, `POINT(x,y)`, `CLIP`,
-`SET LINE`/`SET MARK`/`SET PAINT`/`SET PATTERN`, and `DIVX`/`DIVY`.
+`SET LINE`/`SET MARK`/`SET PAINT`/`SET PATTERN`, `DIVX`/`DIVY`, and the
+palette (`COLOUR i,$RGB`, `PALETTE …`, `COLOUR(i)` to read one back — always
+masked to `$777`). Palette words are the ST 9-bit `R-G-B` format and both
+renderers read the live palette, so `COLOUR` repaints the screen immediately.
 `PLAY` is accepted but silent; `FLASH`/`KEY`/`CLICK` `ON|OFF`, `HIDE` and
 `SHOW` are no-ops.
 

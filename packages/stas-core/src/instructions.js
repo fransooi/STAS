@@ -20,6 +20,7 @@ import {
 import { detokenize } from "./program.js";
 import { PixelScreen } from "./pixel-screen.js";
 import { bankBase } from "./memory.js";
+import { stPaletteToRgb } from "./ascii-buffer.js";
 
 // --- petits combinateurs ---------------------------------------------------
 const num1 = (it) => it.toNum(it.args(1, 1)[0]);
@@ -209,6 +210,65 @@ function usingNumber(it, fmt, val) {
     out.push(c);
   }
   return out.join("");
+}
+
+// --- palette (COLOUR / PALETTE) -------------------------------------------
+//  Format matériel ST : mot 9 bits `0000 0RGB 0RGB 0RGB` (3 bits par
+//  composante, nibbles alignés — Hardware Spec §3.2). io.paletteST garde les
+//  mots, io.palette l'équivalent RGB lu par les renderers.
+//
+//  Fidélité BASIC.S : l'instruction COLOUR stocke le MOT BRUT 16 bits
+//  (`color`), mais le matériel ne verrouille que 9 bits (3,7,11 ignorés) et
+//  la fonction COLOUR() masque avec $777 (`colorf`). PALETTE, elle, refuse
+//  toute valeur hors $777 (`s`).
+
+/** Valide un mot $RGB pour PALETTE : 3 bits par composante (0..$777). */
+function stPaletteWord(it, v) {
+  if (v < 0 || (v & ~0x777) !== 0) it.err(ERR.FON_CALL);
+  return v;
+}
+
+function setPaletteST(it, i, word) {
+  it.io.paletteST[i] = word & 0xffff;
+  it.io.palette[i] = stPaletteToRgb(word & 0x777);
+}
+
+/** COLOUR i,$rgb — règle une entrée de palette. */
+function doColourSet(it) {
+  const i = it.toInt(it.evalExpr());
+  if (i < 0 || i > 15) it.err(ERR.FON_CALL);
+  if (!it.eatRaw(",")) it.err(ERR.SYNTAX);
+  const v = it.toInt(it.evalExpr());
+  if (v < 0 || v > 0xffff) it.err(ERR.FON_CALL); // cmp.l #$10000 -> foncall
+  setPaletteST(it, i, v);
+}
+
+/** COLOUR(i) — lit une entrée de palette (matériel, masquée $777). */
+function funcColour(it) {
+  const i = it.toInt(it.args(1, 1)[0]);
+  if (i < 0 || i > 15) it.err(ERR.FON_CALL);
+  return INT(it.io.paletteST[i] & 0x777);
+}
+
+/**
+ * PALETTE $rgb0,$rgb1,… — règle les entrées de palette.
+ * Une entrée vide (virgule doublée) laisse l'entrée inchangée et avance d'un
+ * cran, comme la boucle `s` de BASIC.S. Au-delà de 16 entrées on s'arrête
+ * (le matériel lowres n'a que 16 registres de palette).
+ */
+function doPalette(it) {
+  let i = 0;
+  for (;;) {
+    if (it.atEos()) return;
+    // Une entrée vide (virgule immédiate) laisse l'entrée courante intacte ;
+    // la virgule elle-même est consommée au bas de la boucle (BASIC.S `s`).
+    if (!it.peekRaw(",")) {
+      setPaletteST(it, i, stPaletteWord(it, it.toInt(it.evalExpr())));
+    }
+    i++;
+    if (i >= 16 || it.atEos()) return;
+    if (!it.eatRaw(",")) it.err(ERR.SYNTAX);
+  }
 }
 
 async function doLocate(it) {
@@ -1331,6 +1391,7 @@ export const INSTRUCTIONS = new Map([
   [T.POKE, doPoke],
   [T.DOKE, doDoke],
   [T.LOKE, doLoke],
+  [T.COLOUR, doColourSet],
   [T.INC, (it) => doIncDec(it, 1)],
   [T.DEC, (it) => doIncDec(it, -1)],
   [T.MODE, doMode],
@@ -1555,6 +1616,7 @@ export const EXT_INSTRUCTIONS = new Map([
   [SUB.SETMARK, doSetMark],
   [SUB.SETPAINT, doSetPaint],
   [SUB.SETPATTERN, doSetPattern],
+  [SUB.PALETTE, doPalette],
   [SUB.WINDOPEN, doWindOpen],
   [SUB.WINDOW, doWindow],
   [SUB.QWINDOW, doQWindow],
@@ -1688,6 +1750,7 @@ export const FUNC_TABLE = new Map([
   [T.INKEY, (it) => STR(it.inkey())],
   [T.SCRN, funcScrn],
   [T.POINT, funcPoint],
+  [T.COLOUR, funcColour],
   [T.SCANCODE, (it) => INT(it.io.scancode ? it.io.scancode() : 0)],
   [T.MID, (it) => {
     const [sv, av, lv] = it.args(2, 3);

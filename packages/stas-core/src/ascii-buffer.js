@@ -32,6 +32,25 @@ export const STOS_PALETTE = [
   [0x00, 0x00, 0x00], // 15 noir
 ];
 
+/**
+ * Palette STOS : mot 9 bits, format matériel `0000 0RGB 0RGB 0RGB`
+ * (3 bits par composante, alignés sur les nibbles — Hardware Spec §3.2).
+ */
+export function stPaletteToRgb(w) {
+  return [
+    Math.round((((w >> 8) & 7) * 255) / 7),
+    Math.round((((w >> 4) & 7) * 255) / 7),
+    Math.round(((w & 7) * 255) / 7),
+  ];
+}
+
+export function rgbToStPalette(c) {
+  const r = Math.round((c[0] * 7) / 255) & 7;
+  const g = Math.round((c[1] * 7) / 255) & 7;
+  const b = Math.round((c[2] * 7) / 255) & 7;
+  return (r << 8) | (g << 4) | b;
+}
+
 export class AsciiBuffer {
   /**
    * @param {number} width   Largeur en cellules (80 par défaut)

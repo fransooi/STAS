@@ -21,7 +21,6 @@
  *  au plus proche voisin, net et rapide.
  */
 
-import { STOS_PALETTE } from "@stas/core";
 import { CanvasRenderer } from "./canvas-renderer.js";
 
 export class PixelRenderer {
@@ -119,10 +118,11 @@ export class PixelRenderer {
     const d = img.data;
     const col = p.colors;
     const tch = p.touched;
+    const palette = this.stas.palette; // palette vivante (COLOUR/PALETTE)
     for (let i = 0, n = col.length; i < n; i++) {
       const o = i * 4;
       if (tch[i]) {
-        const pal = STOS_PALETTE[col[i] & 15];
+        const pal = palette[col[i] & 15];
         d[o] = pal[0];
         d[o + 1] = pal[1];
         d[o + 2] = pal[2];

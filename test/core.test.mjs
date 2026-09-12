@@ -16,6 +16,8 @@ import {
   ERR,
   PixelScreen,
   convertScreen,
+  stPaletteToRgb,
+  rgbToStPalette,
 } from "../packages/stas-core/index.js";
 
 // ---------------------------------------------------------------------------
@@ -1708,4 +1710,82 @@ test("ARC : angles 0..3600, hors bornes = erreur 13", async () => {
   await stas.run();
   assert.equal(stas.io.logic.get(150, 100), 1);
   assert.equal(stas.io.logic.get(100, 50), 1);
+});
+
+// ---------------------------------------------------------------------------
+//  Palette ($RGB 9 bits : COLOUR / PALETTE / COLOUR())
+// ---------------------------------------------------------------------------
+
+test("palette : défaut = 16 couleurs GEM (0=blanc, 15=noir)", () => {
+  const stas = new Stas({});
+  assert.equal(stas.palette.length, 16);
+  assert.deepEqual(stas.palette[0], [255, 255, 255]);
+  assert.deepEqual(stas.palette[15], [0, 0, 0]);
+  assert.equal(stas.io.paletteST[1], 0x700); // rouge
+  assert.equal(stas.io.paletteST[2], 0x070); // vert
+});
+
+test("COLOUR : l'instruction règle l'entrée, la fonction la relit", async () => {
+  const stas = new Stas({});
+  stas.loadSource(["10 colour 5,$770", "20 print colour(5)"]);
+  await stas.run();
+  assert.deepEqual(out(stas.buffer.toText()), ["1904"]); // $770 = 1904
+  assert.equal(stas.io.paletteST[5], 0x770);
+  assert.deepEqual(stas.palette[5], [255, 255, 0]); // jaune
+});
+
+test("COLOUR : mot brut 16 bits, mais la fonction masque $777", async () => {
+  const stas = new Stas({});
+  stas.loadSource(["10 colour 5,$fff", "20 print colour(5)"]);
+  await stas.run();
+  assert.deepEqual(out(stas.buffer.toText()), ["1911"]); // $777
+  assert.equal(stas.io.paletteST[5], 0xfff); // mot brut conservé (BASIC.S `color`)
+});
+
+test("COLOUR : index/valeur hors bornes = erreur 13", async () => {
+  await expectError(["10 colour 16,$700"], ERR.FON_CALL);
+  await expectError(["10 colour -1,$700"], ERR.FON_CALL);
+  await expectError(["10 colour 0,$10000"], ERR.FON_CALL);
+  await expectError(["10 print colour(16)"], ERR.FON_CALL);
+});
+
+test("PALETTE : règle la liste, une entrée vide reste inchangée", async () => {
+  const stas = new Stas({});
+  stas.loadSource(["10 palette ,$700,$070"]);
+  await stas.run();
+  assert.equal(stas.io.paletteST[0], 0x777); // blanc GEM sauté
+  assert.equal(stas.io.paletteST[1], 0x700);
+  assert.equal(stas.io.paletteST[2], 0x070);
+});
+
+test("PALETTE : entrée vide au milieu (comme la boucle `s` de BASIC.S)", async () => {
+  const stas = new Stas({});
+  stas.loadSource(["10 palette $000,$000,,$700"]);
+  await stas.run();
+  assert.equal(stas.io.paletteST[0], 0x000);
+  assert.equal(stas.io.paletteST[1], 0x000);
+  assert.equal(stas.io.paletteST[2], 0x070); // vert GEM, sauté
+  assert.equal(stas.io.paletteST[3], 0x700);
+});
+
+test("PALETTE : 16 entrées en lowres puis arrêt", async () => {
+  const stas = new Stas({});
+  stas.loadSource(["10 palette 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0"]);
+  await stas.run();
+  assert.ok(stas.io.paletteST.every((w) => w === 0));
+});
+
+test("PALETTE : valeur hors $777 = erreur 13", async () => {
+  await expectError(["10 palette $1000"], ERR.FON_CALL);
+});
+
+test("palette : conversion 9 bits <-> RGB réversible", () => {
+  for (let r = 0; r < 8; r++) {
+    for (let g = 0; g < 8; g++) {
+      for (let b = 0; b < 8; b++) {
+        const w = (r << 8) | (g << 4) | b;
+        assert.equal(rgbToStPalette(stPaletteToRgb(w)), w, `w=$${w.toString(16)}`);
+      }
+    }
+  }
 });

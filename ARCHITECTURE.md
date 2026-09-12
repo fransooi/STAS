@@ -188,6 +188,8 @@ mem          Memory
 banks        Map<n, {kind,size,data}>
 logic/physic PixelScreen | null ; gfxActive ; autoback ; ink
 mode/clip/lineStyle/mark/paint/pattern        (graphisme V2)
+palette      [r,g,b][16]              palette vivante lue par les renderers
+paletteST    number[16]               mots ST 9 bits $RGB (COLOUR/PALETTE)
 sprites / spriteVersion
 ```
 
@@ -288,13 +290,13 @@ node packages/stas-core/...    # le cœur s'importe directement (ESM relatif)
 ## 12. État actuel & suite
 
 Voir `IMPLEMENTATION-STATUS.md` pour le détail chiffré (dernier connu :
-**210 implémentés / 131 restants**). Fait : langage (maths/chaînes/système),
+**212 implémentés / 129 restants**). Fait : langage (maths/chaînes/système),
 erreurs (`ON ERROR`/`RESUME`/`ERRN`/`ERRL`), mémoire (banques, `PEEK`/`POKE`,
-`VARPTR`, plans ST), fenêtres texte, attributs texte, graphisme V2 (primitives).
+`VARPTR`, plans ST), fenêtres texte, attributs texte, graphisme V2 (primitives
++ `COLOUR`/`PALETTE`).
 
 **Reste, par ordre suggéré :**
-1. **Couleurs/palette** — `COLOUR`, `PALETTE`, `GET PALETTE`, `FADE`, `SHIFT`
-   (vérifier le format 9 bits et les modes dans le Hardware Spec).
+1. **Couleurs/palette (reste)** — `GET PALETTE`, `FADE`, `SHIFT`.
 2. **Effets écran** — `APPEAR`, `ZOOM`, `REDUCE`, `PACK`, `UNPACK`, copie de zone.
 3. **Sprites** — brancher `stas-sprites` au runtime (`SPRITE`, `MOVE`, `ANIM`, …).
 4. **Musique** — `MUSIC`, `VOICE`, `VOLUME`, `TEMPO`, `ENVEL`, `PLAY` audible.

@@ -116,3 +116,20 @@ test("console : sinus-anim.bas s'anime puis s'arrête sur Q", async () => {
   assert.ok(QUADS.test(lines.join("")), "la sinusoïde est en ascii-art");
   assert.ok(lines.some((l) => l.includes("touche Q")), "le texte est affiché");
 });
+
+test("console : COLOUR repeint la palette ANSI (palette vivante)", async () => {
+  const out = capture();
+  const stas = new Stas({ width: 20, height: 3 });
+  const renderer = new AnsiRenderer(stas, { out });
+  wire(stas, renderer);
+  stas.io.inkey = () => "";
+  stas.loadSource(
+    ["10 cls", "20 colour 0,$700", "30 paper 15", "40 pen 0", '50 print "A"'],
+    { merge: false },
+  );
+  await stas.run();
+  renderer.render(true);
+  const text = out.text();
+  assert.ok(text.includes("\x1b[38;2;255;0;0m"), "encre 0 devenue rouge vif ($700)");
+  assert.ok(!text.includes("\x1b[38;2;255;255;255m"), "le blanc GEM a disparu");
+});

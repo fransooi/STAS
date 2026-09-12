@@ -15,10 +15,6 @@
  *  --------------------------------------------------------------------
  */
 
-import { STOS_PALETTE } from "@stas/core";
-
-const CSS = STOS_PALETTE.map(([r, g, b]) => `rgb(${r},${g},${b})`);
-
 export class CanvasRenderer {
   constructor(stas, canvas, opts = {}) {
     this.stas = stas;
@@ -64,6 +60,8 @@ export class CanvasRenderer {
     if (!force && ver === this._lastVersion) return;
     this._lastVersion = ver;
     const ctx = this.ctx;
+    // Palette vivante : relue à chaque frame, COLOUR/PALETTE la modifient.
+    const css = this.stas.palette.map(([r, g, b]) => `rgb(${r},${g},${b})`);
     const { cellW: cw, cellH: ch } = this;
     ctx.font = this.font;
     ctx.textBaseline = "top";
@@ -72,16 +70,16 @@ export class CanvasRenderer {
         const c = this.textOnly
           ? b.cells[y * b.width + x]
           : this.stas.cellAt(x, y);
-        ctx.fillStyle = CSS[this.forcePaper ?? c.bg] ?? CSS[15];
+        ctx.fillStyle = css[this.forcePaper ?? c.bg] ?? css[15];
         ctx.fillRect(x * cw, y * ch, cw, ch);
         if (c.ch !== " ") {
-          ctx.fillStyle = CSS[c.fg] ?? CSS[0];
+          ctx.fillStyle = css[c.fg] ?? css[0];
           ctx.fillText(c.ch, x * cw + 1, y * ch + 1);
         }
       }
     }
     if (b.cursorVisible && this._cursorOn) {
-      ctx.fillStyle = CSS[b.curPen] ?? CSS[0];
+      ctx.fillStyle = css[b.curPen] ?? css[0];
       ctx.fillRect(b.cx * cw, (b.cy + 1) * ch - 3, cw, 2);
     }
   }

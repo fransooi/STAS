@@ -22,16 +22,16 @@ raises STOS error **20** (`Function not implemented`), per
 | Category | Count |
 | --- | ---: |
 | Distinct tokenized keyword forms | **341** |
-| Implemented (handler present) | **210** |
-| Tokenized, **not** implemented → error 20 | **131** |
+| Implemented (handler present) | **212** |
+| Tokenized, **not** implemented → error 20 | **129** |
 | Manual entries **not tokenized at all** | **2** |
 
 Of the 210 "implemented" forms, 7 are pure structural markers (`TO`, `STEP`,
 `THEN`, `NEXT`, `WEND`, `UNTIL`, `ELSE`), leaving **≈ 203 distinct STOS
 features that actually run today**.
 
-> Iterations 1–6 landed: the count moved from 124 → **210** implemented
-> (217 → 131 missing).
+> Iterations 1–7 landed: the count moved from 124 → **212** implemented
+> (217 → 129 missing).
 
 **The token table is *almost* complete:** only **`PACK`** and **`UNPACK`**
 (screen pack/unpack) from the reference card have no token. Everything else is
@@ -165,9 +165,13 @@ styles (`SET CURS`, `CURS`), `INVERSE`/`SHADE`/`UNDER`/`WRITING`, `SQUARE`,
 `POLYGON` (filled), `POLYLINE`, `POLYMARK`, `POINT(x,y)`, `CLIP`, `SET LINE`
 (mask + thickness), `SET MARK`, `SET PAINT`, `SET PATTERN`, `DIVX`, `DIVY`.
 Angles are in **tenths of a degree** (0-3600), faithful to `BASIC.S`.
-Still open: colour/palette (`COLOUR`, `PALETTE`, `GET PALETTE`, `FADE`,
-`SHIFT`), screen effects (`APPEAR`, `ZOOM`, `REDUCE`, `PACK`, `UNPACK`,
-`SCREEN` area copy) and `GRWRITING`.
+✅ **Palette done (iteration 7).** `COLOUR i,$RGB` (statement) and `COLOUR(i)`
+(function, masked `$777`), `PALETTE` (list; empty entries are skipped, values
+outside `$777` → error 13). The live palette is read by both console and
+canvas renderers. Faithful to `BASIC.S` (`color`/`colorf`/`s`) and Hardware
+Spec §3.2 (9-bit nibble-aligned words).
+Still open: `GET PALETTE`, `FADE`, `SHIFT`, screen effects (`APPEAR`, `ZOOM`,
+`REDUCE`, `PACK`, `UNPACK`, `SCREEN` area copy) and `GRWRITING`.
 
 ### 3.7 Sprites & animation
 - `SPRITE n,x,y,p`, `UPDATE`, `FREEZE`, `OFF`, `MOVE ON|OFF|X|Y`, `MOVEON`
@@ -253,6 +257,13 @@ These features *run* but do not match the manual exactly:
   address update the variable (arena sync).
 - **`ERRN` / `ERRL`** always return 0 — they need the error state once
   `ON ERROR` exists.
+- **`COLOUR` / `PALETTE`** act on the 16 hardware palette registers (9-bit
+  `$RGB`, nibble-aligned). The default palette is the Atari GEM/TOS one
+  (0 = white … 15 = black), matching *"STOS outputs white text on a black
+  background"*. In medium res the hardware shows only the first 4 entries and
+  in mono the palette is bypassed, but all 16 registers are kept — exactly as
+  `BASIC.S`. Palette 0's border role in multi-plane modes is not drawn by the
+  console/canvas renderers.
 - **`PLAY`** parses its arguments but produces no sound.
 - **`FLASH` / `KEY` / `CLICK` ON|OFF** and **`HIDE` / `SHOW`** are no-ops.
 - **`IF … THEN … ELSE`** single-line only (no multi-line blocks) — by design.
@@ -279,9 +290,9 @@ Ranked by value ÷ effort, assuming the console/canvas target:
    real `ERRN`/`ERRL`, `BREAK ON|OFF` toggle. (`DEF FN` still open.)
 3. ✅ **Done (iteration 5)** — text/console fidelity: `SCRN`, cursor and
    coordinate conversions, `INVERSE`/`UNDER`/`SHADE`/`WRITING`, `SQUARE`.
-4. ◑ **Primitives done (iteration 6)** — Graphics V2: arcs/pies, `POLYGON`/
-   `POLYLINE`/`POLYMARK`, `POINT`, `CLIP`, `SET LINE`/`MARK`/`PAINT`,
-   `DIVX`/`DIVY`. (Colour/palette and screen effects still open.)
+4. ◑ **Primitives + palette done (iterations 6–7)** — Graphics V2: arcs/pies,
+   `POLYGON`/`POLYLINE`/`POLYMARK`, `POINT`, `CLIP`, `SET LINE`/`MARK`/`PAINT`,
+   `DIVX`/`DIVY`, `COLOUR`/`PALETTE`. (Screen effects still open.)
 5. ✅ **Done (iteration 4)** — text windows (borders, relative coordinates,
    activation).
 6. **Sprite runtime** — wire `stas-sprites` to `SPRITE`/`MOVE`/`ANIM`/

@@ -300,6 +300,12 @@ export class Interpreter {
 
   eatRaw(ch) { return this.eat(ch.charCodeAt(0)); }
 
+  /** Regarde le prochain token sans le consommer (caractère brut ASCII). */
+  peekRaw(ch) {
+    const t = this.peek();
+    return !!t && t.code === ch.charCodeAt(0);
+  }
+
   expectRaw(ch) {
     const t = this.eatRaw(ch);
     if (!t) this.err(ERR.SYNTAX);

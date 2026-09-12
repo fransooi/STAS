@@ -13,7 +13,7 @@
  *  --------------------------------------------------------------------
  */
 
-import { AsciiBuffer, STOS_PALETTE } from "./ascii-buffer.js";
+import { AsciiBuffer, STOS_PALETTE, stPaletteToRgb, rgbToStPalette } from "./ascii-buffer.js";
 import { PixelScreen } from "./pixel-screen.js";
 import { Memory } from "./memory.js";
 import { WindowManager, borderCodeToGlyph } from "./windows.js";
@@ -85,6 +85,8 @@ export class Stas {
       mark: null,          // SET MARK {type,height}
       paint: null,         // SET PAINT {type,style,perimeter}
       pattern: null,       // SET PATTERN (motif utilisateur)
+      palette: STOS_PALETTE.map((c) => c.slice()),   // 16 couleurs RGB (affichage)
+      paletteST: STOS_PALETTE.map(rgbToStPalette),   // 16 mots ST 9 bits (COLOUR/PALETTE)
     };
     this.io.mem = new Memory(this.io);
     this.io.windows = new WindowManager(this.io);
@@ -101,6 +103,11 @@ export class Stas {
 
   get langue() {
     return this.interp.langue;
+  }
+
+  /** Palette RGB courante (16 entrées) — lue par les renderers. */
+  get palette() {
+    return this.io.palette;
   }
 
   /** Écran logique 320x200 (null tant que MODE n'a pas été appelé). */
@@ -272,6 +279,7 @@ export class Stas {
 }
 
 export { AsciiBuffer, STOS_PALETTE, Program, Interpreter, tokenize };
+export { stPaletteToRgb, rgbToStPalette } from "./ascii-buffer.js";
 export { PixelScreen, SCREEN_W, SCREEN_H } from "./pixel-screen.js";
 export { convertScreen } from "./ascii-converter.js";
 export {
