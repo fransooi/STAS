@@ -68,82 +68,147 @@ async function doPrint(it) {
   if (newline) it.buffer.write("\n");
 }
 
-// --- USING : formatage fin (STOS : ! # + - . ; ^) -------------------------
+// --- USING : formatage fin ------------------------------------------------
+//  Port fidèle de BASIC.S « ssprint / using1 / using50 » (1987) :
+//    ~  un caractère de la chaîne (espace quand elle est épuisée)
+//    #  un chiffre (lu de droite à gauche pour la partie entière,
+//       de gauche à droite après le point ; espace/0 quand épuisé)
+//    .  point décimal (recopié)
+//    +  signe permanent (+/-)     -  signe seulement si négatif
+//    ;  marque la position sans point décimal (écrit un espace)
+//    ^  exposant (copie celui de la valeur, sinon fabrique « E+000 »)
+//    E  termine la partie entière (comme le point)
+//  Comme le STOS, une seule expression est formatée par USING : la suite
+//  s'imprime normalement (ssprint remet usingflg à 0), et « , » y fait 3 espaces.
 
-/** PRINT USING format$;v1[,v2…] / instruction USING équivalente. */
+const USPUISS = "E+000  "; // uspuiss de BASIC.S
+
+/** PRINT USING format$;expr / instruction USING équivalente. */
 function printUsing(it) {
   const fmt = it.toStr(it.evalExpr());
   it.expectRaw(";");
-  const vals = [it.evalExpr()];
-  while (it.eatRaw(",")) vals.push(it.evalExpr());
-  it.buffer.write(formatUsing(it, fmt, vals));
-  it.buffer.write("\n");
+  const v = it.evalExpr();
+  it.buffer.write(
+    v.t === T_STR ? usingString(fmt, v.v) : usingNumber(it, fmt, v)
+  );
+  let newline = true;
+  while (!it.atEos()) {
+    if (it.eatRaw(";")) { newline = false; continue; }
+    if (it.eatRaw(",")) { it.buffer.write("   "); newline = false; continue; }
+    it.buffer.write(it.formatValue(it.evalExpr()));
+    newline = true;
+  }
+  if (newline) it.buffer.write("\n");
 }
 
-const USING_FIELD = "#+-.;^";
-
-/**
- * Applique un format USING. Un champ commence à un run de "!" (chaîne) ou
- * de caractères "#+-.;^" (nombre) ; tout le reste est recopié littéralement.
- * Un champ par valeur, dans l'ordre.
- */
-function formatUsing(it, fmt, vals) {
+/** using50 : chaque ~ prend un caractère de la chaîne, un espace au-delà. */
+function usingString(fmt, s) {
   let out = "";
-  let vi = 0;
-  for (let i = 0; i < fmt.length; ) {
-    const ch = fmt[i];
-    if (ch === "!") {
-      let j = i;
-      while (j < fmt.length && fmt[j] === "!") j++;
-      const width = j - i;
-      const s = vi < vals.length ? it.toStr(vals[vi++]) : "";
-      out += s.length >= width ? s.slice(0, width) : s.padEnd(width, " ");
-      i = j;
-    } else if (USING_FIELD.includes(ch)) {
-      let j = i;
-      while (j < fmt.length && USING_FIELD.includes(fmt[j])) j++;
-      const field = fmt.slice(i, j);
-      const v = vi < vals.length ? it.toNum(vals[vi++]) : 0;
-      out += formatUsingNum(field, v);
-      i = j;
-    } else {
-      out += ch;
-      i++;
-    }
+  let k = 0;
+  for (const c of fmt) {
+    if (c === "~") out += k < s.length ? s[k++] : " ";
+    else out += c;
   }
   return out;
 }
 
-function formatUsingNum(field, n) {
-  const hasPlus = field.includes("+");
-  const hasMinus = field.includes("-");
-  const centre = field.includes(";");
-  const exp = field.includes("^");
-  const dot = field.indexOf(".");
-  const before = (dot >= 0 ? field.slice(0, dot) : field).replace(/[^#]/g, "").length;
-  const after = dot >= 0 ? field.slice(dot + 1).replace(/[^#]/g, "").length : 0;
+/**
+ * Représentation ASCII de la valeur, comme longdec1 / strflasc :
+ * premier caractère = signe ('-' ou espace), puis les chiffres, un '.', la
+ * fraction, et éventuellement « E+dd » pour l'exponentielle.
+ */
+function usingValueString(it, val) {
+  if (val.t === T_INT) {
+    const n = val.v | 0;
+    return (n < 0 ? "-" : " ") + String(Math.abs(n));
+  }
+  const v = val.v;
+  const neg = v < 0 || Object.is(v, -0);
+  const a = Math.abs(v);
+  const fix = it.fixPrecision;
   let body;
-  if (exp) {
-    body = n.toExponential(Math.max(0, dot >= 0 ? after : before));
-    body = body.replace("e", "E").replace(/E\+?(-?)0*(\d)/, "E$1$2");
-  } else {
-    body = n.toFixed(after);
+  if (fix != null && fix < 0) body = a.toExponential(Math.abs(fix));
+  else if (fix != null && fix > 0 && fix < 16) body = a.toFixed(fix);
+  else body = String(a);
+  return (neg ? "-" : " ") + body.replace("e", "E");
+}
+
+/** using1 : formatage d'un nombre (algorithme de BASIC.S). */
+function usingNumber(it, fmt, val) {
+  const vs = usingValueString(it, val);
+  const out = [];
+  let i = 0;
+  // us3 : avance dans le format jusqu'à '.', ';', 'E' ou fin
+  let f = 0;
+  while (f < fmt.length) {
+    const c = fmt[f];
+    if (c === "." || c === ";" || c === "E") break;
+    f++;
   }
-  if (n >= 0) {
-    if (hasPlus) body = "+" + body;
-    else if (hasMinus) body = " " + body;
+  // us5 : avance dans la valeur jusqu'à '.', 'E' ou fin
+  while (i < vs.length) {
+    const c = vs[i];
+    if (c === "." || c === "E") break;
+    i++;
   }
-  const width = field.length;
-  if (body.length < width) {
-    const pad = width - body.length;
-    if (centre) {
-      const left = Math.floor(pad / 2);
-      body = " ".repeat(left) + body + " ".repeat(pad - left);
+  // us6/us7 : partie gauche, écrite de droite à gauche (a1 est consommé)
+  const iInt = i; // a1 au us6, restauré par us15
+  for (let k = f - 1; k >= 0; k--) {
+    const c = fmt[k];
+    if (c === "#") {
+      if (i === 0) out.push(" ");
+      else {
+        const d = vs[--i];
+        out.push(d >= "0" && d <= "9" ? d : " ");
+      }
+    } else if (c === "-") {
+      out.push(vs[0] === "-" ? "-" : " ");
+    } else if (c === "+") {
+      out.push(vs[0] === "-" ? "-" : "+");
     } else {
-      body = " ".repeat(pad) + body;
+      out.push(c);
     }
   }
-  return body;
+  out.reverse();
+  // us15 : a1 restauré (fin de la partie entière), puis saute le point
+  i = iInt;
+  if (vs[i] === ".") i++;
+  // us16 : partie droite, écrite de gauche à droite
+  let d2 = 0; // drapeau puissance
+  let idx = f;
+  const copyExp = () => {
+    for (;;) {
+      if (i >= vs.length) { out.push(d2 === 0 ? "0" : " "); return; }
+      const d = vs[i++];
+      if (d === " ") continue; // saute l'espace entre E et +/- (us24)
+      out.push(d);
+      return;
+    }
+  };
+  while (idx < fmt.length) {
+    const c = fmt[idx++];
+    if (c === ";") { out.push(" "); continue; }
+    if (c === "#") {
+      const d = i < vs.length ? vs[i] : "";
+      if (d >= "0" && d <= "9") { out.push(d); i++; }
+      else out.push(d2 === 0 ? "0" : " ");
+      continue;
+    }
+    if (c === "^") {
+      if (d2 < 0) copyExp();
+      else if (d2 > 0) {
+        out.push(USPUISS[d2 - 1]);
+        if (d2 !== 6) d2++;
+      } else {
+        while (i < vs.length && vs[i] !== "E") i++;
+        if (i >= vs.length) { d2 = 2; out.push(USPUISS[0]); }
+        else { d2 = -1; copyExp(); }
+      }
+      continue;
+    }
+    out.push(c);
+  }
+  return out.join("");
 }
 
 async function doLocate(it) {

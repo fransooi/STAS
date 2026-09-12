@@ -177,7 +177,7 @@ exponential).
 
 **String functions**: `CHR$ ASC LEN LEFT$ RIGHT$ MID$ STR$ VAL SPACE$
 STRING$ INSTR UPPER$ LOWER$ HEX$ BIN$ FLIP$`, plus `INPUT$(n)` (read n
-characters without echo) and `USING` formatted output.
+characters without echo) and `USING` formatted output (fields `~ # + - . ; ^`).
 
 **Arrays & system**: `MATCH` (closest match in a sorted 1-D array), `SORT a(0)`
 (sort a 1-D array), `SWAP x,y` (exchange two variables), `FREE`, `TIME$`,

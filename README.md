@@ -180,7 +180,7 @@ exponentielle).
 
 **Fonctions chaînes** : `CHR$ ASC LEN LEFT$ RIGHT$ MID$ STR$ VAL SPACE$
 STRING$ INSTR UPPER$ LOWER$ HEX$ BIN$ FLIP$`, plus `INPUT$(n)` (lit n
-caractères sans écho) et le formatage `USING`.
+caractères sans écho) et le formatage `USING` (champs `~ # + - . ; ^`).
 
 **Tableaux & système** : `MATCH` (plus proche valeur dans un tableau trié 1-D),
 `SORT a(0)` (trie un tableau 1-D), `SWAP x,y` (échange deux variables),

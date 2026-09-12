@@ -70,7 +70,8 @@ printed precision of reals.
 
 **Arrays, strings & system**
 `MATCH` (closest match in a sorted 1-D array), `SORT a(0)`, `SWAP x,y`,
-`FLIP$`, `INPUT$(n)`, `USING format$;…` (fields `! # + - . ; ^`), `FREE`,
+`FLIP$`, `INPUT$(n)`, `USING format$;…` (fields `~ # + - . ; ^`, ported
+from BASIC.S), `FREE`,
 `TIME$`, `DATE$` (readable and assignable), `LANGUAGE`.
 
 **Error handling**
@@ -212,9 +213,12 @@ These features *run* but do not match the manual exactly:
 
 - **`DEG` / `RAD`** now behave both ways, as in STOS: alone they switch the
   trigonometric mode, with an argument they convert the angle.
-- **`USING`** implements the documented field characters (`! # + - . ; ^`) as
-  a best-effort reading of the OCR'd manual; unusual combinations may differ
-  from the 1988 original.
+- **`USING`** is a faithful port of the 1987 routine (`ssprint`/`using1`/
+  `using50` in `BASIC.S`): string fields are `~` (one character each, a space
+  once the string is exhausted), digits `#` are consumed right-to-left for the
+  integer part, `;` emits a space, and `^` copies the value's exponent or
+  fabricates `E+000`. As in the original, **one expression is formatted per
+  `USING`**; the rest of the list prints normally.
 - **`INPUT$(n)`** is resolved once per statement *before* the synchronous
   evaluator runs (each occurrence is read and substituted in place), so it now
   works inside any expression. A branch of `IF` that is not taken is never

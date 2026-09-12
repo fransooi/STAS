@@ -1224,14 +1224,21 @@ test("SORT et MATCH : tableau trié 1-D", async () => {
   await expectError(['10 dim a$(1)', "20 print match(a$(0),1)"], ERR.TYPE_MISMATCH);
 });
 
-test("USING : champs documentés (#, +, -, ., !)", async () => {
+test("USING : format de BASIC.S (~ # + - . ; ^)", async () => {
   assert.deepEqual(await runOut([
     '10 print using "###.##";3.14159',
     '20 print using "x=###";42',
-    '30 print using "+###";10',
-    '40 print using "-###";10',
-    '50 print using "!!!!x";"ab"',
-  ]), ["  3.14", "x= 42", " +10", "  10", "ab  x"]);
+    '30 print using "+##";10',
+    '40 print using "-##";-10',
+    '50 print using "1st:~ 2nd:~ 3rd:~";"Basic"',
+    '60 print using "#;###";3.1415926',
+  ]), ["  3.14", "x= 42", "+10", "-10", "1st:B 2nd:a 3rd:s", "3 141"]);
+});
+
+test("USING : exposant (^)", async () => {
+  assert.deepEqual(await runOut([
+    '10 fix(-4):print using "#.^^^";12345.618',
+  ]), ["1.E+4"]);
 });
 
 test("USING : forme instruction autonome", async () => {
