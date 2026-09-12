@@ -87,6 +87,8 @@ export class Stas {
       pattern: null,       // SET PATTERN (motif utilisateur)
       palette: STOS_PALETTE.map((c) => c.slice()),   // 16 couleurs RGB (affichage)
       paletteST: STOS_PALETTE.map(rgbToStPalette),   // 16 mots ST 9 bits (COLOUR/PALETTE)
+      paletteVersion: 0,   // toute modif de palette force un repaint
+      anim: { shift: null, fade: null },   // animations de palette (interruption)
     };
     this.io.mem = new Memory(this.io);
     this.io.windows = new WindowManager(this.io);
@@ -128,13 +130,14 @@ export class Stas {
     return this.io.sprites;
   }
 
-  /** Compteur de salissure global : texte + écrans pixels + sprites. */
+  /** Compteur de salissure global : texte + écrans pixels + sprites + palette. */
   get sceneVersion() {
     const p = this.io.physic;
     return (
       this.buffer.version +
       (p ? p.version + this.io.logic.version : 0) +
-      (this.io.spriteVersion | 0)
+      (this.io.spriteVersion | 0) +
+      (this.io.paletteVersion | 0)
     );
   }
 
@@ -259,6 +262,8 @@ export class Stas {
     this.io.autoback = true;
     this.io.asciiCache = null;
     this.io.spriteVersion = 0;
+    this.io.anim = { shift: null, fade: null };
+    this.io.paletteVersion = (this.io.paletteVersion | 0) + 1;
     this.io.windows = new WindowManager(this.io);
     this.io.windows.mode = this.io.borderMode;
     this.buffer.setView(null);

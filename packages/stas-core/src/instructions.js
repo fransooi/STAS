@@ -20,7 +20,10 @@ import {
 import { detokenize } from "./program.js";
 import { PixelScreen } from "./pixel-screen.js";
 import { bankBase } from "./memory.js";
-import { stPaletteToRgb } from "./ascii-buffer.js";
+import {
+  setPaletteWord, getPaletteWord,
+  startShift, stopShift, startFade,
+} from "./palette.js";
 
 // --- petits combinateurs ---------------------------------------------------
 const num1 = (it) => it.toNum(it.args(1, 1)[0]);
@@ -229,8 +232,7 @@ function stPaletteWord(it, v) {
 }
 
 function setPaletteST(it, i, word) {
-  it.io.paletteST[i] = word & 0xffff;
-  it.io.palette[i] = stPaletteToRgb(word & 0x777);
+  setPaletteWord(it.io, i, word);
 }
 
 /** COLOUR i,$rgb — règle une entrée de palette. */
@@ -247,7 +249,7 @@ function doColourSet(it) {
 function funcColour(it) {
   const i = it.toInt(it.args(1, 1)[0]);
   if (i < 0 || i > 15) it.err(ERR.FON_CALL);
-  return INT(it.io.paletteST[i] & 0x777);
+  return INT(getPaletteWord(it.io, i));
 }
 
 /**
@@ -269,6 +271,85 @@ function doPalette(it) {
     if (i >= 16 || it.atEos()) return;
     if (!it.eatRaw(",")) it.err(ERR.SYNTAX);
   }
+}
+
+/** Lit les 16 mots de palette d'une banque écran (offset 32000, gros-boutistes). */
+function readBankPalette(it, n) {
+  const b = it.io.banks.get(n);
+  if (!b) it.err(ERR.BANK_NOT_RES);                       // 44
+  if (b.kind !== "screen" && b.kind !== "datascreen") it.err(ERR.BANK_NOT_SCR);
+  const out = new Array(16);
+  for (let i = 0; i < 16; i++) {
+    const off = 32000 + i * 2;
+    out[i] = (((b.data[off] ?? 0) << 8) | (b.data[off + 1] ?? 0)) & 0xffff;
+  }
+  return out;
+}
+
+/** GET PALETTE(n) — charge la palette de l'écran de la banque n (`getpalet`). */
+function doGetPalette(it) {
+  const words = readBankPalette(it, it.toInt(it.args(1, 1)[0]));
+  for (let i = 0; i < 16; i++) setPaletteST(it, i, words[i]);
+}
+
+/**
+ * SHIFT vitesse[,début] / SHIFT OFF — rotation de palette (`colshift` +
+ * SPRITES.S `shifton`/`shifter`). Défaut de `début` = 1.
+ */
+function doShift(it) {
+  const t = it.peek();
+  if (t && (t.code === T.ON || t.code === T.OFF)) {
+    it.next();
+    if (t.code !== T.OFF) it.err(ERR.SYNTAX);   // SHIFT ON n'existe pas
+    stopShift(it.io);
+    return;
+  }
+  const speed = it.toInt(it.evalExpr());
+  let start = 1;
+  if (it.eatRaw(",")) start = it.toInt(it.evalExpr());
+  if (speed < 0 || speed >= 0x10000) it.err(ERR.FON_CALL);
+  const colmax = it.io.mode === 0 ? 16 : it.io.mode === 1 ? 4 : 2;
+  if (start < 0 || start >= colmax - 1) it.err(ERR.FON_CALL);
+  if (speed === 0) { stopShift(it.io); return; }  // SHIFT 0 = pas de rotation
+  startShift(it.io, speed, start);
+}
+
+/**
+ * FADE vitesse — vers le noir.
+ * FADE vitesse TO banque — vers la palette de l'écran d'une banque.
+ * FADE vitesse,clr1,,clr3,… — vers une palette partielle (troue = inchangée).
+ */
+function doFade(it) {
+  const speed = it.toInt(it.evalExpr());
+  if (speed < 0 || speed >= 1000) it.err(ERR.FON_CALL); // cmp.l #1000
+  if (speed === 0) it.err(ERR.FON_CALL);                // cmp.w #0
+  if (it.atEos()) {                                     // FADE vitesse -> noir
+    startFade(it.io, speed, new Array(16).fill(0), 0xffff);
+    return;
+  }
+  const t = it.peek();
+  if (t && t.code === T.TO) {                           // FADE vitesse TO image#
+    it.next();
+    startFade(it.io, speed, readBankPalette(it, it.toInt(it.evalExpr())), 0xffff);
+    return;
+  }
+  if (!it.eatRaw(",")) it.err(ERR.SYNTAX);
+  // Cible = palette courante ; seules les couleurs citées bougent (bit de
+  // masque), une entrée vide laissant la couleur inchangée (BASIC.S `s`).
+  const target = it.io.paletteST.map((w) => w & 0x777);
+  let mask = 0;
+  let i = 0;
+  for (;;) {
+    if (it.atEos()) break;
+    if (!it.peekRaw(",")) {
+      target[i] = stPaletteWord(it, it.toInt(it.evalExpr()));
+      mask |= 1 << i;
+    }
+    i++;
+    if (i >= 16 || it.atEos()) break;
+    if (!it.eatRaw(",")) it.err(ERR.SYNTAX);
+  }
+  startFade(it.io, speed, target, mask);
 }
 
 async function doLocate(it) {
@@ -1617,6 +1698,9 @@ export const EXT_INSTRUCTIONS = new Map([
   [SUB.SETPAINT, doSetPaint],
   [SUB.SETPATTERN, doSetPattern],
   [SUB.PALETTE, doPalette],
+  [SUB.GETPALETTE, doGetPalette],
+  [SUB.SHIFT, doShift],
+  [SUB.FADE, doFade],
   [SUB.WINDOPEN, doWindOpen],
   [SUB.WINDOW, doWindow],
   [SUB.QWINDOW, doQWindow],

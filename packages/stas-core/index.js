@@ -5,6 +5,11 @@
 
 export { Stas, AsciiBuffer, STOS_PALETTE, Program, Interpreter, tokenize } from "./src/stas.js";
 export { stPaletteToRgb, rgbToStPalette } from "./src/stas.js";
+export {
+  setPaletteWord, getPaletteWord,
+  startShift, stopShift, stepShift,
+  startFade, stepFade, pumpAnims,
+} from "./src/palette.js";
 export { PixelScreen, SCREEN_W, SCREEN_H, convertScreen } from "./src/stas.js";
 export {
   Memory, bankBase,

@@ -18,6 +18,11 @@ import {
   convertScreen,
   stPaletteToRgb,
   rgbToStPalette,
+  setPaletteWord,
+  getPaletteWord,
+  stepShift,
+  stepFade,
+  pumpAnims,
 } from "../packages/stas-core/index.js";
 
 // ---------------------------------------------------------------------------
@@ -1788,4 +1793,111 @@ test("palette : conversion 9 bits <-> RGB réversible", () => {
       }
     }
   }
+});
+
+test("palette : une modif force le repaint (sceneVersion)", async () => {
+  const stas = new Stas({});
+  stas.loadSource(["10 print 1"]);
+  await stas.run();
+  const v = stas.sceneVersion;
+  await stas.execDirect("colour 0,$700");
+  assert.ok(stas.sceneVersion > v, "COLOUR invalide le cache de rendu");
+});
+
+// ---------------------------------------------------------------------------
+//  GET PALETTE / SHIFT / FADE
+// ---------------------------------------------------------------------------
+
+test("GET PALETTE : charge la palette d'une banque écran (offset 32000)", async () => {
+  const stas = new Stas({});
+  stas.loadSource([
+    "10 reserve as screen 5",
+    "20 doke start(5)+32000,$700",
+    "30 doke start(5)+32002,$070",
+    "40 get palette(5)",
+    "50 print colour(0);colour(1)",
+    "60 print colour(5)",
+  ]);
+  await stas.run();
+  assert.deepEqual(out(stas.buffer.toText()), ["1792112", "0"]);
+  // 1792=$700, 112=$070 ; les 16 entrées sont lues, les non écrites = 0
+});
+
+test("GET PALETTE : banque absente = erreur 44, non-écran = erreur 42", async () => {
+  await expectError(["10 get palette(5)"], ERR.BANK_NOT_RES);
+  await expectError(["10 reserve as data 5", "20 get palette(5)"], ERR.BANK_NOT_SCR);
+});
+
+test("SHIFT : rotation de la plage [début..fin] des registres", async () => {
+  const stas = new Stas({});
+  stas.loadSource(["10 shift 1"]);
+  await stas.run();
+  assert.ok(stas.io.anim.shift, "shifter actif");
+  assert.equal(stas.io.anim.shift.start, 1);
+  assert.equal(stas.io.anim.shift.end, 15);
+  assert.equal(getPaletteWord(stas.io, 0), 0x777); // index 0 hors plage
+  stepShift(stas.io);
+  // reg[1] = ancien reg[15] (noir), reg[2] = ancien reg[1] (rouge)
+  assert.equal(getPaletteWord(stas.io, 1), 0x000);
+  assert.equal(getPaletteWord(stas.io, 2), 0x700);
+  assert.equal(getPaletteWord(stas.io, 15), 0x033); // ancien reg[14] = cyan sombre
+});
+
+test("SHIFT OFF / SHIFT 0 : arrêt du shifter", async () => {
+  const stas = new Stas({});
+  stas.loadSource(["10 shift 5", "20 shift off"]);
+  await stas.run();
+  assert.equal(stas.io.anim.shift, null);
+});
+
+test("SHIFT : début hors plage = erreur 13", async () => {
+  await expectError(["10 shift 2,15"], ERR.FON_CALL); // start >= colmax-1
+});
+
+test("FADE : un mot vers le noir, ±1 par composante et par pas", async () => {
+  const stas = new Stas({});
+  stas.loadSource(["10 fade 5,$000"]);
+  await stas.run();
+  const f = stas.io.anim.fade;
+  assert.ok(f, "fondu actif");
+  assert.equal(f.mask, 0x0001);            // seule la couleur 0
+  assert.equal(getPaletteWord(stas.io, 0), 0x777);
+  stepFade(stas.io);
+  assert.equal(getPaletteWord(stas.io, 0), 0x666); // 777 -> 666
+  for (let i = 0; i < 6; i++) stepFade(stas.io);
+  assert.equal(getPaletteWord(stas.io, 0), 0x000);
+  assert.equal(stas.io.anim.fade, null, "fondu terminé");
+  assert.equal(getPaletteWord(stas.io, 1), 0x700, "couleur 1 intacte");
+});
+
+test("FADE : vitesse 0 = erreur 13", async () => {
+  await expectError(["10 fade 0"], ERR.FON_CALL);
+});
+
+test("FADE vitesse TO banque : cible = palette de la banque", async () => {
+  const stas = new Stas({});
+  stas.loadSource([
+    "10 reserve as screen 5",
+    "20 doke start(5)+32000,$123",
+    "30 fade 3 to 5",
+  ]);
+  await stas.run();
+  assert.equal(stas.io.anim.fade.target[0], 0x123);
+  assert.equal(stas.io.anim.fade.mask, 0xffff);   // toutes les couleurs
+  assert.equal(stas.io.anim.shift, null, "un fondu total arrête le shifter");
+});
+
+test("pumpAnims : avance selon le temps réel (1 trame = 20 ms)", async () => {
+  let t = 1000;
+  const stas = new Stas({ now: () => t });
+  stas.loadSource(["10 palette $100,$200", "20 shift 2"]);
+  await stas.run();
+  const before = getPaletteWord(stas.io, 2);
+  pumpAnims(stas.io);            // établit la base de temps
+  t += 39;                       // < 2 trames -> rien
+  pumpAnims(stas.io);
+  assert.equal(getPaletteWord(stas.io, 2), before);
+  t += 1;                        // atteint 2 trames -> un cran
+  pumpAnims(stas.io);
+  assert.equal(getPaletteWord(stas.io, 2), 0x200); // ancien reg[1]
 });

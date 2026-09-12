@@ -190,6 +190,8 @@ logic/physic PixelScreen | null ; gfxActive ; autoback ; ink
 mode/clip/lineStyle/mark/paint/pattern        (graphisme V2)
 palette      [r,g,b][16]              palette vivante lue par les renderers
 paletteST    number[16]               mots ST 9 bits $RGB (COLOUR/PALETTE)
+paletteVersion number                 repaint forcé sur modif de palette
+anim         {shift, fade}            animations de palette (avance au tick)
 sprites / spriteVersion
 ```
 
@@ -290,19 +292,18 @@ node packages/stas-core/...    # le cœur s'importe directement (ESM relatif)
 ## 12. État actuel & suite
 
 Voir `IMPLEMENTATION-STATUS.md` pour le détail chiffré (dernier connu :
-**212 implémentés / 129 restants**). Fait : langage (maths/chaînes/système),
+**215 implémentés / 126 restants**). Fait : langage (maths/chaînes/système),
 erreurs (`ON ERROR`/`RESUME`/`ERRN`/`ERRL`), mémoire (banques, `PEEK`/`POKE`,
-`VARPTR`, plans ST), fenêtres texte, attributs texte, graphisme V2 (primitives
-+ `COLOUR`/`PALETTE`).
+`VARPTR`, plans ST), fenêtres texte, attributs texte, graphisme V2 (primitives,
+palette `COLOUR`/`PALETTE`/`GET PALETTE`/`SHIFT`/`FADE`).
 
 **Reste, par ordre suggéré :**
-1. **Couleurs/palette (reste)** — `GET PALETTE`, `FADE`, `SHIFT`.
-2. **Effets écran** — `APPEAR`, `ZOOM`, `REDUCE`, `PACK`, `UNPACK`, copie de zone.
-3. **Sprites** — brancher `stas-sprites` au runtime (`SPRITE`, `MOVE`, `ANIM`, …).
-4. **Musique** — `MUSIC`, `VOICE`, `VOLUME`, `TEMPO`, `ENVEL`, `PLAY` audible.
-5. **Menus**, **souris/joystick**, **fichiers/dossiers**, **éditeur**
+1. **Effets écran** — `APPEAR`, `ZOOM`, `REDUCE`, `PACK`, `UNPACK`, copie de zone.
+2. **Sprites** — brancher `stas-sprites` au runtime (`SPRITE`, `MOVE`, `ANIM`, …).
+3. **Musique** — `MUSIC`, `VOICE`, `VOLUME`, `TEMPO`, `ENVEL`, `PLAY` audible.
+4. **Menus**, **souris/joystick**, **fichiers/dossiers**, **éditeur**
    (`AUTO`, `RENUM`, `SEARCH`, `CHANGE`, …), **imprimante**.
-6. **Permanent error 20** : `BGRAB`, `CALL`, `TRAP`, `AREG`, `DREG`, `PSG`.
+5. **Permanent error 20** : `BGRAB`, `CALL`, `TRAP`, `AREG`, `DREG`, `PSG`.
 
 **Approximations assumées à documenter/polir :** `WRITING 2|3` (OR/XOR sur la
 cellule), `SHADE` (flag sans rendu), `SET PATTERN` (mémorisé, non rendu),
