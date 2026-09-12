@@ -82,7 +82,7 @@ export const SUB = {
   BELL: 0x8d, PLAY: 0x8e, NOISE: 0x8f, VOICE: 0x90, MUSIC: 0x91,
   BOX: 0x92, RBOX: 0x93, BAR: 0x94, RBAR: 0x95, APPEAR: 0x96,
   BCLR: 0x97, BSET: 0x98, ROL: 0x99, ROR: 0x9a, CURS: 0x9b,
-  CLW: 0x9c, BCHG: 0x9d, CALL: 0x9e, TRAP: 0x9f,
+  CLW: 0x9c, BCHG: 0x9d, CALL: 0x9e, TRAP: 0x9f, UNPACK: 0xa0,
   RUN: 0xa1, CLEARKEY: 0xa2, LINEINPUT: 0xa3, INPUT: 0xa4,
   CLEAR: 0xa5, DATA: 0xa6, END: 0xa7, ERASE: 0xa8, RESERVE: 0xa9,
   AS_DATASCREEN: 0xaa, AS_WORK: 0xab, AS_SCREEN: 0xac, AS_DATA: 0xad,
@@ -121,6 +121,7 @@ export const FSUB = {
   JDOWN: 0xa9, FIRE: 0xaa, JOY: 0xab, MOVON: 0xac, ICON: 0xad,
   TAB: 0xae, EXP: 0xaf, CHARLEN: 0xb0, MNBAR: 0xb1, MNSELECT: 0xb2,
   WINDON: 0xb3, XTEXT: 0xb4, YTEXT: 0xb5, XGRAPHIC: 0xb6, YGRAPHIC: 0xb7,
+  PACK: 0xb8,
   SQR: 0xb9, DIVX: 0xba, DIVY: 0xbb, LN: 0xbc, TAN: 0xbd,
   DRVMAP: 0xbe, FSELECTOR: 0xbf, DFREE: 0xc0, SGN: 0xc1, PORT: 0xc2,
   PVOICE: 0xc3, INT: 0xc4, DETECT: 0xc5, DEG: 0xc6, RAD: 0xc7,
@@ -211,6 +212,7 @@ export const KEYWORDS = [
   ["port", T.EXT_FUNC, FSUB.PORT], ["pvoice", T.EXT_FUNC, FSUB.PVOICE],
   ["int", T.EXT_FUNC, FSUB.INT], ["detect", T.EXT_FUNC, FSUB.DETECT],
   ["deg", T.EXT_FUNC, FSUB.DEG], ["rad", T.EXT_FUNC, FSUB.RAD],
+  ["pack", T.EXT_FUNC, FSUB.PACK],
 
   // ===== Instructions étendues (préfixe $A0) =====
   ["dir/w", T.ETENDU, SUB.DIRW], ["fade", T.ETENDU, SUB.FADE],
@@ -259,6 +261,7 @@ export const KEYWORDS = [
   ["put sprite", T.ETENDU, SUB.PUTSPRITE],
   ["get sprite", T.ETENDU, SUB.GETSPRITE], ["load", T.ETENDU, SUB.LOAD],
   ["save", T.ETENDU, SUB.SAVE], ["palette", T.ETENDU, SUB.PALETTE],
+  ["unpack", T.ETENDU, SUB.UNPACK],
   ["synchro", T.ETENDU, SUB.SYNCHRO], ["error", T.ETENDU, SUB.ERROR],
   ["break", T.ETENDU, SUB.BREAK], ["let", T.ETENDU, SUB.LET],
   ["key", T.ETENDU, SUB.KEY], ["open in", T.ETENDU, SUB.OPENIN],

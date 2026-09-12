@@ -229,8 +229,10 @@ deux renderers lisent la palette vivante : un `COLOUR` repeint donc l'écran
 immédiatement. `SHIFT` fait tourner la palette et `FADE` la fond (animations
 façon interruptions, un pas toutes les `speed` trames). `APPEAR` révèle un
 écran de banque sur le PHYSIC pixel par pixel (pas copremier `tappear`), et
-`GET PALETTE(n)` charge la palette d'une banque écran. `PLAY` est accepté mais
-silencieux ; `FLASH`/`KEY`/`CLICK` `ON|OFF`, `HIDE`, `SHOW` sont des no-ops.
+`GET PALETTE(n)` charge la palette d'une banque écran. `PACK`/`UNPACK` sont le
+PICTURE COMPACTOR (RLE à deux étages fidèle à `COMPACT.S`). `PLAY` est accepté
+mais silencieux ; `FLASH`/`KEY`/`CLICK` `ON|OFF`, `HIDE`, `SHOW` sont des
+no-ops.
 
 ### Mémoire — banques, PEEK / POKE
 

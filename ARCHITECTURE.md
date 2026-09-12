@@ -161,6 +161,12 @@ source.bas → tokenizer → Program → Interpreter → AsciiBuffer → rendere
   1 Mo. Écran `compatible` (plans ST entrelacés) ou `native` (1 octet/pixel).
 - **windows.js** — `WindowManager` : `WINDOPEN/WINDOW/QWINDOW/WINDMOV/WINDEL/
   WINDON/TITLE/BORDER/CLW/SCROLL` ; `textRect()` = zone intérieure à la bordure.
+- **palette.js** — palette 9 bits : `COLOUR`/`PALETTE`/`GET PALETTE` et les
+  animations `FADE`/`SHIFT` (`pumpAnims()`, avancée par le tick).
+- **screens.js** — opérandes écran (`LOGIC`/`PHYSIC`/banque/adresse), lecture
+  pixel planaire, `APPEAR` (révélation par pas copremier).
+- **compact.js** — PICTURE COMPACTOR : `PACK`/`UNPACK`, port de `COMPACT.S`
+  (RLE à deux étages, en-tête `$06071963`).
 
 ---
 
@@ -292,13 +298,14 @@ node packages/stas-core/...    # le cœur s'importe directement (ESM relatif)
 ## 12. État actuel & suite
 
 Voir `IMPLEMENTATION-STATUS.md` pour le détail chiffré (dernier connu :
-**216 implémentés / 125 restants**). Fait : langage (maths/chaînes/système),
+**218 implémentés / 125 restants**). Fait : langage (maths/chaînes/système),
 erreurs (`ON ERROR`/`RESUME`/`ERRN`/`ERRL`), mémoire (banques, `PEEK`/`POKE`,
 `VARPTR`, plans ST), fenêtres texte, attributs texte, graphisme V2 (primitives,
-palette `COLOUR`/`PALETTE`/`GET PALETTE`/`SHIFT`/`FADE`, `APPEAR`).
+palette `COLOUR`/`PALETTE`/`GET PALETTE`/`SHIFT`/`FADE`, `APPEAR`,
+`PACK`/`UNPACK`).
 
 **Reste, par ordre suggéré :**
-1. **Effets écran** — `ZOOM`, `REDUCE`, `PACK`, `UNPACK`, copie de zone.
+1. **Effets écran** — `ZOOM`, `REDUCE`, copie de zone `SCREEN`.
 2. **Sprites** — brancher `stas-sprites` au runtime (`SPRITE`, `MOVE`, `ANIM`, …).
 3. **Musique** — `MUSIC`, `VOICE`, `VOLUME`, `TEMPO`, `ENVEL`, `PLAY` audible.
 4. **Menus**, **souris/joystick**, **fichiers/dossiers**, **éditeur**

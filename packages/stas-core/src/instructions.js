@@ -25,6 +25,7 @@ import {
   startShift, stopShift, startFade,
 } from "./palette.js";
 import { doAppear, bankPalette } from "./screens.js";
+import { bankAddr, screenAddr, screenOperand, packScreen, unpackScreen, TMODE } from "./compact.js";
 
 // --- petits combinateurs ---------------------------------------------------
 const num1 = (it) => it.toNum(it.args(1, 1)[0]);
@@ -338,6 +339,60 @@ function doFade(it) {
     if (!it.eatRaw(",")) it.err(ERR.SYNTAX);
   }
   startFade(it.io, speed, target, mask);
+}
+
+// --- PACK / UNPACK (extension PICTURE COMPACTOR, cf. compact.js) ------------
+
+/**
+ * I=PACK(scr,bnk[,mode,flags,hauteur,dx,dy,tx,ty]) — compacte un écran dans
+ * une banque et renvoie la longueur de l'image compactée.
+ * Défauts (COMPACT.S L128-148) : mode = résolution courante, tx = mots/ligne,
+ * ty = hauteur/5, hauteur = 5, dx = dy = 0, flags = %11.
+ */
+function funcPack(it) {
+  const a = it.args(2, 9).map((v) => it.toInt(v));
+  if (a.length !== 2 && a.length !== 9) it.err(ERR.SYNTAX);
+  const mode = a.length === 9 ? a[2] : (it.io.mode | 0);
+  if (mode < 0 || mode > 2) it.err(ERR.FON_CALL);
+  const tm = TMODE[mode];
+  const flags = a.length === 9 ? a[3] : 3;             // %11
+  const tcar = a.length === 9 ? a[4] : 5;
+  const dx = a.length === 9 ? a[5] : 0;
+  const dy = a.length === 9 ? a[6] : 0;
+  const tx = a.length === 9 ? a[7] : tm.line / tm.group;
+  const ty = a.length === 9 ? a[8] : Math.floor(tm.height / 5);
+  const srcBase = screenAddr(it, a[0]);
+  const dstBase = bankAddr(it, a[1]);
+  const len = packScreen(it, srcBase, dstBase, { mode, flags, tcar, dx, dy, tx, ty });
+  return INT(len);
+}
+
+/**
+ * UNPACK origine[,ecran[,flags[,dx,dy]]] — restaure une image compactée.
+ * dx est donné en PIXELS (divisé par 16) ; dx/dy/flags < 0 -> valeurs d'en-tête.
+ */
+function doUnpack(it) {
+  const paren = it.eatRaw("(");
+  const srcVal = it.toInt(it.evalExpr());
+  let dstBase = null;
+  if (it.eatRaw(",")) dstBase = screenOperand(it);
+  if (dstBase == null) it.err(ERR.NOT_IMPL);   // « décor des sprites » non modélisé
+  let flags = null;
+  if (it.eatRaw(",")) {
+    const f = it.toInt(it.evalExpr());
+    flags = f < 0 ? null : f;
+  }
+  let dx = null;
+  let dy = null;
+  if (it.eatRaw(",")) {
+    const fx = it.toInt(it.evalExpr());
+    if (!it.eatRaw(",")) it.err(ERR.SYNTAX);
+    const fy = it.toInt(it.evalExpr());
+    if (fx >= 0) dx = fx >> 4;   // pixels -> mots
+    if (fy >= 0) dy = fy;        // pixels
+  }
+  if (paren) it.expectRaw(")");
+  unpackScreen(it, bankAddr(it, srcVal), dstBase, { flags, dx, dy });
 }
 
 async function doLocate(it) {
@@ -1690,6 +1745,7 @@ export const EXT_INSTRUCTIONS = new Map([
   [SUB.SHIFT, doShift],
   [SUB.FADE, doFade],
   [SUB.APPEAR, doAppear],
+  [SUB.UNPACK, doUnpack],
   [SUB.WINDOPEN, doWindOpen],
   [SUB.WINDOW, doWindow],
   [SUB.QWINDOW, doQWindow],
@@ -1956,6 +2012,7 @@ export const EXTFUNC_TABLE = new Map([
   // l'instruction seule, cf. Interpreter.execStatement).
   [FSUB.DEG, (it) => FLOAT((num1(it) * 180) / Math.PI)],
   [FSUB.RAD, (it) => FLOAT((num1(it) * Math.PI) / 180)],
+  [FSUB.PACK, funcPack],
   [FSUB.ERRN, (it) => INT(it.errn)],
   [FSUB.ERRL, (it) => INT(it.errl)],
   [FSUB.VARPTR, funcVarptr],

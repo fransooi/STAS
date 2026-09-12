@@ -21,22 +21,21 @@ raises STOS error **20** (`Function not implemented`), per
 
 | Category | Count |
 | --- | ---: |
-| Distinct tokenized keyword forms | **341** |
-| Implemented (handler present) | **216** |
+| Distinct tokenized keyword forms | **343** |
+| Implemented (handler present) | **218** |
 | Tokenized, **not** implemented → error 20 | **125** |
-| Manual entries **not tokenized at all** | **2** |
+| Manual entries **not tokenized at all** | **0** |
 
-Of the 210 "implemented" forms, 7 are pure structural markers (`TO`, `STEP`,
-`THEN`, `NEXT`, `WEND`, `UNTIL`, `ELSE`), leaving **≈ 203 distinct STOS
+Of the 218 "implemented" forms, 7 are pure structural markers (`TO`, `STEP`,
+`THEN`, `NEXT`, `WEND`, `UNTIL`, `ELSE`), leaving **≈ 211 distinct STOS
 features that actually run today**.
 
-> Iterations 1–8 landed: the count moved from 124 → **216** implemented
+> Iterations 1–9 landed: the count moved from 124 → **218** implemented
 > (217 → 125 missing).
 
-**The token table is *almost* complete:** only **`PACK`** and **`UNPACK`**
-(screen pack/unpack) from the reference card have no token. Everything else is
-at least recognized — the difference between STAS and STOS is in the dispatch
-tables, not the tokenizer.
+**The token table is now complete:** `PACK` and `UNPACK` (the PICTURE
+COMPACTOR accessory) gained tokens in iteration 9. The difference between
+STAS and STOS is only in the dispatch tables, never the tokenizer.
 
 ---
 
@@ -180,8 +179,17 @@ a time, stepping by a stride coprime with 64000 so the image materialises over
 ~30 rendered frames. Effects 73–80 use even strides and stop early (partial
 image), exactly as the original.
 
-Still open: screen effects (`ZOOM`, `REDUCE`, `PACK`, `UNPACK`, `SCREEN` area
-copy) and `GRWRITING`.
+Still open: screen effects (`ZOOM`, `REDUCE`, `SCREEN` area copy) and
+`GRWRITING`.
+
+✅ **`PACK` / `UNPACK` (iteration 9).** Full port of `COMPACT.S` (c) FL Soft
+1987, the PICTURE COMPACTOR accessory: the exact region traversal (plane →
+square row → square → left/right byte → vertical run), the RLE bitmask, the
+re-encoded pointer table and the 70-byte header (`$06071963`, palette at
+32000). `PACK(src,bnk[,mode,flags,hauteur,dx,dy,tx,ty])` returns the compacted
+length; `UNPACK origine[,ecran[,flags[,dx,dy]]]` restores it. Byte-for-byte
+round-trip is tested, including a noisy image. (The sprite-background default
+destination is not modelled yet, and `mode` 1/2 need non-lowres screens.)
 
 ### 3.7 Sprites & animation
 - `SPRITE n,x,y,p`, `UPDATE`, `FREEZE`, `OFF`, `MOVE ON|OFF|X|Y`, `MOVEON`
@@ -278,6 +286,9 @@ These features *run* but do not match the manual exactly:
   interpreter's *tick* (every 1024 statements and during `WAIT`), advancing the
   palette one step every `speed` frames (1 frame = 20 ms). The observable
   result for a BASIC program is the same.
+- **`PACK` / `UNPACK`** are byte-faithful to `COMPACT.S`. Two limits: a
+  1-argument `UNPACK` (destination = sprite background) is not modelled, and
+  `mode` 1/2 assume non-lowres images (STAS screens are always 320x200).
 - **`PLAY`** parses its arguments but produces no sound.
 - **`FLASH` / `KEY` / `CLICK` ON|OFF** and **`HIDE` / `SHOW`** are no-ops.
 - **`IF … THEN … ELSE`** single-line only (no multi-line blocks) — by design.
@@ -304,10 +315,10 @@ Ranked by value ÷ effort, assuming the console/canvas target:
    real `ERRN`/`ERRL`, `BREAK ON|OFF` toggle. (`DEF FN` still open.)
 3. ✅ **Done (iteration 5)** — text/console fidelity: `SCRN`, cursor and
    coordinate conversions, `INVERSE`/`UNDER`/`SHADE`/`WRITING`, `SQUARE`.
-4. ◑ **Primitives + palette done (iterations 6–8)** — Graphics V2: arcs/pies,
+4. ◑ **Primitives + palette done (iterations 6–9)** — Graphics V2: arcs/pies,
    `POLYGON`/`POLYLINE`/`POLYMARK`, `POINT`, `CLIP`, `SET LINE`/`MARK`/`PAINT`,
-   `DIVX`/`DIVY`, `COLOUR`/`PALETTE`/`GET PALETTE`/`SHIFT`/`FADE`, `APPEAR`.
-   (Screen effects still open.)
+   `DIVX`/`DIVY`, `COLOUR`/`PALETTE`/`GET PALETTE`/`SHIFT`/`FADE`, `APPEAR`,
+   `PACK`/`UNPACK`. (Screen effects still open.)
 5. ✅ **Done (iteration 4)** — text windows (borders, relative coordinates,
    activation).
 6. **Sprite runtime** — wire `stas-sprites` to `SPRITE`/`MOVE`/`ANIM`/

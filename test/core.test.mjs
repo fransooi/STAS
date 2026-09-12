@@ -1939,3 +1939,95 @@ test("APPEAR : effet hors 1..80 = erreur 13, banque absente = erreur 44", async 
   await expectError(["10 mode 0", "20 reserve as screen 5", "30 appear 5,81"], ERR.FON_CALL);
   await expectError(["10 mode 0", "20 appear 5,1"], ERR.BANK_NOT_RES);
 });
+
+// ---------------------------------------------------------------------------
+//  PACK / UNPACK (compacteur d'images)
+// ---------------------------------------------------------------------------
+
+test("PACK : en-tête (code $06071963) et longueur renvoyée", async () => {
+  const stas = new Stas({});
+  stas.loadSource([
+    "10 reserve as screen 5",
+    "20 reserve as screen 6",
+    "30 poke start(5),128",
+    "40 l=pack(5,6)",
+    "50 print deek(start(6))",
+    "60 print l",
+  ]);
+  await stas.run();
+  const lines = out(stas.buffer.toText());
+  assert.equal(lines[0], String(0x0607)); // premier mot du code magique
+  const len = parseInt(lines[1], 10);
+  assert.ok(len > 70 && len < 32000, `longueur compactée plausible (${len})`);
+});
+
+test("UNPACK : restaure les octets à l'identique et affiche sur le PHYSIC", async () => {
+  const stas = new Stas({});
+  stas.loadSource([
+    "10 reserve as screen 5",
+    "20 reserve as screen 6",
+    "30 reserve as screen 7",
+    "40 poke start(5),128",     // octet 0, plan 0 -> pixel (0,0) couleur 1
+    "50 poke start(5)+3210,170",
+    "60 l=pack(5,6)",
+    "70 unpack 6,7",            // banque 7 = copie exacte
+    "80 mode 0",
+    "90 unpack 6,physic",       // et l'écran physique
+  ]);
+  await stas.run();
+  const b5 = stas.io.banks.get(5).data;
+  const b7 = stas.io.banks.get(7).data;
+  for (let i = 0; i < 32000; i++) {
+    if (b5[i] !== b7[i]) assert.fail(`octet ${i} : ${b5[i]} != ${b7[i]}`);
+  }
+  assert.equal(stas.physic.get(0, 0), 1);
+  assert.equal(stas.physic.isTouched(0, 0), 1);
+});
+
+test("PACK : nombre de paramètres, mode et zone invalides", async () => {
+  // 2 ou 9 paramètres seulement (COMPACT.S L150-153)
+  await expectError(["10 reserve as screen 5", "20 reserve as screen 6", "30 l=pack(5,6,0)"], ERR.SYNTAX);
+  // mode 9 hors 0..2
+  await expectError(
+    ["10 reserve as screen 5", "20 reserve as screen 6", "30 l=pack(5,6,9,3,5,0,0,20,40)"],
+    ERR.FON_CALL,
+  );
+  // dx+tx dépasse la largeur : 20 mots par ligne en lowres
+  await expectError(
+    ["10 reserve as screen 5", "20 reserve as screen 6", "30 l=pack(5,6,0,3,5,1,0,20,40)"],
+    ERR.FON_CALL,
+  );
+});
+
+test("UNPACK : code magique absent = erreur 13", async () => {
+  await expectError(["10 reserve as data 6,256", "20 mode 0", "30 unpack 6,physic"], ERR.FON_CALL);
+});
+
+test("PACK/UNPACK : aller-retour d'une image bruitée (+ palette)", async () => {
+  const stas = new Stas({});
+  stas.loadSource([
+    "10 reserve as screen 5",
+    "20 reserve as screen 6",
+    "30 reserve as screen 7",
+  ]);
+  await stas.run();
+  const b5 = stas.io.banks.get(5).data;
+  let s = 7;
+  for (let i = 0; i < 32000; i++) { s = (s * 97 + 13) & 0xff; b5[i] = s; }
+  for (let i = 0; i < 16; i++) {          // palette source distinctive
+    b5[32000 + i * 2] = i;
+    b5[32001 + i * 2] = 255 - i;
+  }
+  stas.loadSource(["40 l=pack(5,6)", "50 unpack 6,7", "60 print l"], { merge: false });
+  await stas.run();
+  const b7 = stas.io.banks.get(7).data;
+  for (let i = 0; i < 32000; i++) {
+    if (b5[i] !== b7[i]) assert.fail(`octet ${i} : ${b5[i]} != ${b7[i]}`);
+  }
+  for (let i = 0; i < 16; i++) {
+    assert.equal(b7[32000 + i * 2], i, `palette ${i} (octet fort)`);
+    assert.equal(b7[32001 + i * 2], 255 - i, `palette ${i} (octet faible)`);
+  }
+  const len = parseInt(out(stas.buffer.toText())[0], 10);
+  assert.ok(len > 70, `longueur compactée ${len}`);
+});

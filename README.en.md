@@ -225,7 +225,8 @@ ST 9-bit `R-G-B` format and both renderers read the live palette, so `COLOUR`
 repaints the screen immediately. `SHIFT` rotates the palette and `FADE` fades
 it (interrupt-style animations, one step every `speed` frames). `APPEAR`
 reveals a bank screen onto PHYSIC pixel by pixel (the `tappear` coprime
-stride), and `GET PALETTE(n)` loads a bank screen's palette.
+stride), and `GET PALETTE(n)` loads a bank screen's palette. `PACK`/`UNPACK`
+are the PICTURE COMPACTOR (a faithful `COMPACT.S` two-stage RLE).
 `PLAY` is accepted but silent; `FLASH`/`KEY`/`CLICK` `ON|OFF`, `HIDE` and
 `SHOW` are no-ops.
 
