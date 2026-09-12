@@ -166,7 +166,9 @@ statements.
 
 **Display**: `PRINT` / `?` (`;` no newline, `,` 14-column tabs, `TAB(n)`),
 `CLS`, `LOCATE x,y` (0-based), `PEN n`, `PAPER n`, `HOME`,
-`CUP`/`CDOWN`/`CLEFT`/`CRIGHT`, `INC`/`DEC`.
+`CUP`/`CDOWN`/`CLEFT`/`CRIGHT`, `INC`/`DEC`. Text attributes: `INVERSE`,
+`UNDER`, `SHADE`, `WRITING 1|2|3`, `CURS`, `SET CURS`, `SQUARE`, `SCRN(x,y)`,
+and the `XTEXT`/`YTEXT`/`XGRAPHIC`/`YGRAPHIC` conversions.
 
 **Input**: `INPUT ["text";] v[,v2...]`, `LINE INPUT`, `INKEY$` (non-blocking).
 

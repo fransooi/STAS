@@ -188,12 +188,13 @@ export class WindowManager {
     this.clearRect(win);
   }
 
-  /** SCROLL UP/DOWN — fait défiler la zone texte. */
-  scroll(dir, it) {
+  /** SCROLL UP/DOWN — fait défiler la zone texte (plein écran si aucune). */
+  scroll(down, it) {
     const win = this.active;
-    if (!win) it.err(ERR.WIND_NOT_OPEN);
-    const r = this.textRect(win);
-    this.buffer.scrollView(dir < 0 ? 1 : -1, r);
+    const r = win
+      ? this.textRect(win)
+      : { x: 0, y: 0, w: this.buffer.width, h: this.buffer.height };
+    this.buffer.scrollView(down ? -1 : 1, r);
   }
 
   /** Remplit la zone (true = fenêtre entière) avec le papier. */

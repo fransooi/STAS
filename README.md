@@ -168,7 +168,9 @@ enchaîner.
 
 **Affichage** : `PRINT` / `?` (`;` sans saut de ligne, `,` taquets de 14
 colonnes, `TAB(n)`), `CLS`, `LOCATE x,y` (0-based), `PEN n`, `PAPER n`, `HOME`,
-`CUP`/`CDOWN`/`CLEFT`/`CRIGHT`, `INC`/`DEC`.
+`CUP`/`CDOWN`/`CLEFT`/`CRIGHT`, `INC`/`DEC`. Attributs texte : `INVERSE`,
+`UNDER`, `SHADE`, `WRITING 1|2|3`, `CURS`, `SET CURS`, `SQUARE`, `SCRN(x,y)`,
+et les conversions `XTEXT`/`YTEXT`/`XGRAPHIC`/`YGRAPHIC`.
 
 **Entrées** : `INPUT ["texte";] v[,v2...]`, `LINE INPUT`, `INKEY$` (non
 bloquant).

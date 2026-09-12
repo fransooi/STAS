@@ -605,7 +605,7 @@ test("next/wend/until orphelins = erreurs 23/25/27", async () => {
 
 test("fonctions/instructions non implémentées = erreur 20", async () => {
   await expectError(["10 call 0"], ERR.NOT_IMPL);
-  await expectError(["10 print scrn(0,0)"], ERR.NOT_IMPL);
+  await expectError(["10 print point(0,0)"], ERR.NOT_IMPL);
 });
 
 test('"STAS RUN" à l\'invite exécute le programme', async () => {
@@ -1572,4 +1572,72 @@ test("fenêtres : erreurs 69 / 70 / 71 / 76", async () => {
   await expectError(["10 windel 3"], ERR.WIND_NOT_OPEN);
   await expectError(["10 windopen 0,0,0,10,5,1"], ERR.SYS_WIND);
   await expectError(["10 windopen 1,0,0,1,1,1"], ERR.WIND_SMALL);
+});
+
+// ---------------------------------------------------------------------------
+//  §3.4 — attributs texte & conversions
+// ---------------------------------------------------------------------------
+
+test("INVERSE : échange encre et papier des nouveaux caractères", async () => {
+  const stas = new Stas({});
+  stas.loadSource(["10 paper 0:pen 7", "20 inverse on", '30 print "A"']);
+  await stas.run();
+  const c = stas.buffer.get(0, 0);
+  assert.equal(c.ch, "A");
+  assert.equal(c.fg, 0);
+  assert.equal(c.bg, 7);
+});
+
+test("UNDER : marque les cellules soulignées", async () => {
+  const stas = new Stas({});
+  stas.loadSource(["10 under on", '20 print "A"']);
+  await stas.run();
+  assert.equal(stas.buffer.get(0, 0).ul, true);
+});
+
+test("WRITING : 1 remplacement, 2 OR, 3 XOR", async () => {
+  const stas = new Stas({});
+  stas.loadSource([
+    '10 print "AB"',
+    '20 locate 0,0:writing 2:print " "',   // OR : l'espace n'efface pas
+    '30 locate 0,0:writing 3:print "Z"',   // XOR : 'A' -> espace
+  ]);
+  await stas.run();
+  assert.equal(stas.buffer.get(0, 0).ch, " ");
+  assert.equal(stas.buffer.get(1, 0).ch, "B");
+});
+
+test("SCRN : lit un caractère (relatif à la fenêtre)", async () => {
+  assert.deepEqual(await runOut(['10 print "HELLO"', "20 print scrn(1,0)"]), ["HELLO", "E"]);
+});
+
+test("XTEXT / XGRAPHIC : conversions texte <-> graphique", async () => {
+  assert.deepEqual(await runOut([
+    "10 print xgraphic(10)",
+    "20 print xtext(40)",
+  ]), ["40", "10"]);
+});
+
+test("SQUARE : rectangle au curseur", async () => {
+  const stas = new Stas({});
+  stas.loadSource(["10 locate 2,1", "20 square 5,3,0,0"]);
+  await stas.run();
+  assert.equal(stas.buffer.get(2, 1).ch, "┌");
+  assert.equal(stas.buffer.get(6, 1).ch, "┐");
+  assert.equal(stas.buffer.get(2, 3).ch, "└");
+  assert.equal(stas.buffer.get(6, 3).ch, "┘");
+});
+
+test("SCROLL UP : remonte le contenu", async () => {
+  const stas = new Stas({});
+  stas.loadSource(['10 print "A"', '20 print "B"', "30 scroll up"]);
+  await stas.run();
+  assert.equal(stas.buffer.get(0, 0).ch, "B");
+});
+
+test("CURS OFF : masque le curseur", async () => {
+  const stas = new Stas({});
+  stas.loadSource(["10 curs off"]);
+  await stas.run();
+  assert.equal(stas.buffer.cursorVisible, false);
 });

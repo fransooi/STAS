@@ -22,16 +22,16 @@ raises STOS error **20** (`Function not implemented`), per
 | Category | Count |
 | --- | ---: |
 | Distinct tokenized keyword forms | **341** |
-| Implemented (handler present) | **183** |
-| Tokenized, **not** implemented → error 20 | **158** |
+| Implemented (handler present) | **195** |
+| Tokenized, **not** implemented → error 20 | **146** |
 | Manual entries **not tokenized at all** | **2** |
 
-Of the 183 "implemented" forms, 7 are pure structural markers (`TO`, `STEP`,
-`THEN`, `NEXT`, `WEND`, `UNTIL`, `ELSE`), leaving **≈ 176 distinct STOS
+Of the 195 "implemented" forms, 7 are pure structural markers (`TO`, `STEP`,
+`THEN`, `NEXT`, `WEND`, `UNTIL`, `ELSE`), leaving **≈ 188 distinct STOS
 features that actually run today**.
 
-> Iterations 1–4 landed: the count moved from 124 → **183** implemented
-> (217 → 158 missing).
+> Iterations 1–5 landed: the count moved from 124 → **195** implemented
+> (217 → 146 missing).
 
 **The token table is *almost* complete:** only **`PACK`** and **`UNPACK`**
 (screen pack/unpack) from the reference card have no token. Everything else is
@@ -40,7 +40,7 @@ tables, not the tokenizer.
 
 ---
 
-## 2. Implemented today (183 forms)
+## 2. Implemented today (195 forms)
 
 **Control flow & structures**
 `GOTO`, `GOSUB`, `RETURN`, `POP`, `FOR…TO…STEP…NEXT`, `WHILE…WEND`,
@@ -74,6 +74,11 @@ printed precision of reals.
 from BASIC.S), `FREE`,
 `TIME$`, `DATE$` (readable and assignable), `LANGUAGE`.
 
+**Text attributes & conversions**
+`SCRN(x,y)`, `XCURS`/`YCURS`, `XTEXT`/`YTEXT`/`XGRAPHIC`/`YGRAPHIC`,
+`CURS ON|OFF`, `SET CURS top,base`, `INVERSE ON|OFF`, `UNDER ON|OFF`,
+`SHADE ON|OFF`, `WRITING 1|2|3`, `SQUARE w,h,x,y[,border]`, `SCROLL` (zone).
+
 **Text windows**
 `WINDOPEN n,x,y,tx,ty[,border][,charset]`, `WINDOW`, `QWINDOW`, `WINDMOV`,
 `WINDEL`, `WINDON`, `TITLE`, `BORDER`, `CLW`, `SCROLL UP|DOWN|ON|OFF`.
@@ -106,7 +111,7 @@ HEX$ BIN$`.
 
 ---
 
-## 3. Remaining work (158 tokenized forms → error 20)
+## 3. Remaining work (146 tokenized forms → error 20)
 
 Grouped by subsystem, not by token table, so it maps to actual work items.
 
@@ -134,11 +139,12 @@ Still open: `CURRENT` (not in the reference card), and the graphics
 `SCREEN$(scrn,x1,y1 TO x2,y2)` / `SCREEN$(scrn,x,y)=a$` (see §3.6).
 
 ### 3.4 Text / console (`AsciiBuffer`)
-- `SCRN(x,y)`
-- `XCURS`, `YCURS`, `XTEXT`, `YTEXT`, `XGRAPHIC`, `YGRAPHIC`
-- `CURS` (CURSOR ON/OFF), `SET CURS top,base`
-- `INVERSE ON|OFF`, `SHADE ON|OFF`, `UNDER ON|OFF`, `WRITING effect`
-- `SQUARE w,h,x,y,border`
+✅ **Done (iteration 5).** `SCRN(x,y)`, `XCURS`/`YCURS`, the
+`XTEXT`/`YTEXT`/`XGRAPHIC`/`YGRAPHIC` conversions, `CURS ON|OFF`,
+`SET CURS`, `INVERSE`, `UNDER`, `SHADE`, `WRITING 1|2|3`, `SQUARE`, and the
+`SCROLL` zone. Two documented approximations: `WRITING 2|3` (OR/XOR) is
+emulated on the character cell, and `SHADE` sets a flag with no visual effect
+in ASCII.
 
 ### 3.5 Windows
 ✅ **Done (iteration 4).** `WINDOPEN`, `WINDOW`, `QWINDOW`, `WINDMOV`,
@@ -268,8 +274,8 @@ Ranked by value ÷ effort, assuming the console/canvas target:
    `TIME$`, `DATE$`, `LANGUAGE`, `SORT`, `DEG`/`RAD` dual.
 2. ✅ **Done (iteration 2)** — error handling: `ON ERROR GOTO` + `RESUME*`,
    real `ERRN`/`ERRL`, `BREAK ON|OFF` toggle. (`DEF FN` still open.)
-3. **Text/console fidelity** — `SCRN`, `XCURS`/`YCURS`, `*TEXT`/`*GRAPHIC`
-   conversions, `INVERSE`, `SHADE`, `UNDER`, `SQUARE`.
+3. ✅ **Done (iteration 5)** — text/console fidelity: `SCRN`, cursor and
+   coordinate conversions, `INVERSE`/`UNDER`/`SHADE`/`WRITING`, `SQUARE`.
 4. **Graphics V2 primitives & styles** — `ARC`/`EARC`/`EPIE`/`PIE`,
    `POLYGON`/`POLYLINE`/`POLYMARK`, `POINT`, `CLIP`, `SET LINE`/`MARK`/
    `PATTERN`, `DIVX`/`DIVY`, colour/palette commands.

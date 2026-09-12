@@ -46,6 +46,10 @@ export class AsciiBuffer {
     this.curPen = 0;             // encre courante (PEN)
     this.curPaper = 15;          // papier courant (PAPER)
     this.cursorVisible = true;
+    this.curInverse = false;     // INVERSE ON|OFF
+    this.curUnder = false;       // UNDER ON|OFF
+    this.curShade = false;       // SHADE ON|OFF (sans effet visuel en ASCII)
+    this.curWriting = 1;         // WRITING 1=remplacement 2=OR 3=XOR
     this.version = 0;            // incrementé à chaque modification (dirty tracking)
     this.view = null;            // fenêtre active {x,y,w,h} ou null = plein écran
     this.translate = null;       // traduction d'affichage (mode borders=st)
@@ -82,10 +86,25 @@ export class AsciiBuffer {
   put(x, y, ch, fg = this.curPen, bg = this.curPaper) {
     if (x < 0 || x >= this.width || y < 0 || y >= this.height) return;
     const c = this.cells[this.idx(x, y)];
-    if (c.ch === ch && c.fg === fg && c.bg === bg) return;
+    // INVERSE : échange encre et papier (n'affecte que les nouveaux caractères)
+    if (this.curInverse) {
+      const t = fg;
+      fg = bg;
+      bg = t;
+    }
+    // WRITING : 1 remplacement (défaut), 2 OR, 3 XOR (approximation ASCII)
+    if (this.curWriting === 2 && ch === " ") return;
+    if (this.curWriting === 3 && c.ch !== " ") {
+      ch = " ";
+      fg = this.curInverse ? this.curPaper : this.curPen;
+      bg = this.curInverse ? this.curPen : this.curPaper;
+    }
+    const ul = this.curUnder;
+    if (c.ch === ch && c.fg === fg && c.bg === bg && !!c.ul === ul) return;
     c.ch = ch;
     c.fg = fg;
     c.bg = bg;
+    c.ul = ul;
     this.version++;
   }
 

@@ -310,6 +310,110 @@ function doClw(it) {
   it.io.windows.clearActive(it);
 }
 
+// --- attributs & conversions texte ---------------------------------------
+
+/** Attributs texte : chaque instruction s'écrit ON|OFF */
+
+/** Consomme ON|OFF (ON par défaut) et renvoie le booléen. */
+function flagArg(it) {
+  if (it.eat(T.ON)) return true;
+  if (it.eat(T.OFF)) return false;
+  return true;
+}
+
+/** INVERSE ON|OFF — inverse encre/papier des caractères à venir. */
+function doInverseAttr(it) {
+  it.buffer.curInverse = flagArg(it);
+}
+
+/** UNDER ON|OFF — souligne les caractères à venir. */
+function doUnderAttr(it) {
+  it.buffer.curUnder = flagArg(it);
+}
+
+/** SHADE ON|OFF — ombre du texte (sans effet visuel en ASCII). */
+function doShadeAttr(it) {
+  it.buffer.curShade = flagArg(it);
+}
+
+/** WRITING 1|2|3 — mode d'écriture (remplacement, OR, XOR). */
+function doWriting(it) {
+  const n = it.toInt(it.evalExpr());
+  if (n < 1 || n > 3) it.err(ERR.FON_CALL);
+  it.buffer.curWriting = n;
+}
+
+/** CURS ON|OFF — affiche/maque le curseur. */
+function doCurs(it) {
+  it.buffer.cursorVisible = flagArg(it);
+}
+
+/** SET CURS top,base — taille du curseur (sans effet en ASCII). */
+function doSetCurs(it) {
+  it.toInt(it.evalExpr());
+  if (it.eatRaw(",")) it.toInt(it.evalExpr());
+}
+
+/** SCRN(x,y) — caractère à cette position (relative à la fenêtre). */
+function funcScrn(it) {
+  const [xv, yv] = it.args(2, 2);
+  const b = it.buffer;
+  const c = b.get(b.viewX + it.toInt(xv), b.viewY + it.toInt(yv));
+  return STR(c ? c.ch : " ");
+}
+
+/** SQUARE w,h,x,y[,border] — rectangle ASCII au curseur. */
+function doSquare(it) {
+  const w = it.toInt(it.evalExpr());
+  it.expectRaw(",");
+  const h = it.toInt(it.evalExpr());
+  it.expectRaw(",");
+  const x = it.toInt(it.evalExpr());
+  it.expectRaw(",");
+  const y = it.toInt(it.evalExpr());
+  if (it.eatRaw(",")) it.toInt(it.evalExpr()); // style de bordure : ignoré
+  const b = it.buffer;
+  const x0 = b.viewX + b.cx + x;
+  const y0 = b.viewY + b.cy + y;
+  if (w < 2 || h < 2) return;
+  for (let i = 0; i < w; i++) {
+    b.put(x0 + i, y0, "─");
+    b.put(x0 + i, y0 + h - 1, "─");
+  }
+  for (let j = 0; j < h; j++) {
+    b.put(x0, y0 + j, "│");
+    b.put(x0 + w - 1, y0 + j, "│");
+  }
+  b.put(x0, y0, "┌");
+  b.put(x0 + w - 1, y0, "┐");
+  b.put(x0, y0 + h - 1, "└");
+  b.put(x0 + w - 1, y0 + h - 1, "┘");
+}
+
+/** SCROLL ON|OFF, ou SCROLL x1,y1 TO x2,y2 (zone défilée d'une ligne). */
+function doScroll(it) {
+  const t = it.peek();
+  if (t && (t.code === T.ON || t.code === T.OFF)) {
+    it.next();
+    it.io.windows.scrollEnabled = t.code === T.ON;
+    return;
+  }
+  const x1 = it.toInt(it.evalExpr());
+  it.expectRaw(",");
+  const y1 = it.toInt(it.evalExpr());
+  if (!it.eat(T.TO)) it.err(ERR.SYNTAX);
+  const x2 = it.toInt(it.evalExpr());
+  it.expectRaw(",");
+  const y2 = it.toInt(it.evalExpr());
+  const b = it.buffer;
+  b.scrollView(1, {
+    x: b.viewX + Math.min(x1, x2),
+    y: b.viewY + Math.min(y1, y2),
+    w: Math.abs(x2 - x1) + 1,
+    h: Math.abs(y2 - y1) + 1,
+  });
+}
+
 /** PLAY canal,hauteur,volume[,...] — sons : M4 (silencieux en ASCII). */
 function doPlay(it) {
   it.toInt(it.evalExpr());
@@ -1218,9 +1322,16 @@ export const EXT_INSTRUCTIONS = new Map([
   [SUB.TITLE, doTitle],
   [SUB.BORDER, doBorder],
   [SUB.CLW, doClw],
-  [SUB.SCROLLDN, (it) => it.io.windows.scroll(1, it)],
-  [SUB.SCROLLUP, (it) => it.io.windows.scroll(-1, it)],
-  [SUB.SCROLL, (it) => { it.eat(T.ON) || it.eat(T.OFF); }],
+  [SUB.INVERSE, doInverseAttr],
+  [SUB.UNDER, doUnderAttr],
+  [SUB.SHADE, doShadeAttr],
+  [SUB.WRITING, doWriting],
+  [SUB.CURS, doCurs],
+  [SUB.SETCURS, doSetCurs],
+  [SUB.SQUARE, doSquare],
+  [SUB.SCROLLDN, (it) => it.io.windows.scroll(true, it)],
+  [SUB.SCROLLUP, (it) => it.io.windows.scroll(false, it)],
+  [SUB.SCROLL, doScroll],
   [SUB.COPY, doCopy],
   [SUB.FILL, doFill],
   [SUB.ERASE, doErase],
@@ -1334,6 +1445,7 @@ export const FUNC_TABLE = new Map([
     return STR(String.fromCharCode(n));
   }],
   [T.INKEY, (it) => STR(it.inkey())],
+  [T.SCRN, funcScrn],
   [T.SCANCODE, (it) => INT(it.io.scancode ? it.io.scancode() : 0)],
   [T.MID, (it) => {
     const [sv, av, lv] = it.args(2, 3);
@@ -1473,4 +1585,8 @@ export const EXTFUNC_TABLE = new Map([
   [FSUB.WINDON, (it) => INT(it.io.windows.current())],
   [FSUB.XCURS, (it) => INT(it.buffer.cx)],
   [FSUB.YCURS, (it) => INT(it.buffer.cy)],
+  [FSUB.XTEXT, (it) => INT(Math.floor(num1(it) / (320 / it.buffer.width)))],
+  [FSUB.XGRAPHIC, (it) => INT(Math.round(num1(it) * (320 / it.buffer.width)))],
+  [FSUB.YTEXT, (it) => INT(Math.floor(num1(it) / (200 / it.buffer.height)))],
+  [FSUB.YGRAPHIC, (it) => INT(Math.round(num1(it) * (200 / it.buffer.height)))],
 ]);
